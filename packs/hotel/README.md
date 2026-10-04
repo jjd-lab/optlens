@@ -9,7 +9,7 @@ data is generated and seeded.
 | `model.md` | the model document: every rule and number in business terms |
 | `skill.md` | domain notes for an agent (the levers planners own, the helpers, how the two stages connect) |
 | `helpers.py` | business views and checks for an optlens session: `data_check` (every input that differs from the model rebuilt from its documented parameters), `carry` (two-stage: a rate-plan version's prices and demand applied as changes onto a booking-plan version, so kept changes survive), `occupancy`, `revenue`, `rate_plan`, `describe` |
-| `hooks.py`, `pack.json` | the pack for a chat agent that loads domain packs: loads the helpers, opens the rate plan in a two-stage session and declares the link rates → booking plan; the agent's own hook then has the agent ask the planner before a rate-plan change is carried, and warns when an approved rate plan was never carried |
+| `hooks.py`, `pack.json` | the pack for the planner chat agent built on optlens (see Contact in the main README): loads the helpers, opens the rate plan in a two-stage session and declares the link rates → booking plan; the agent's own hook then has the agent ask the planner before a rate-plan change is carried, and warns when an approved rate plan was never carried |
 | `examples/two_stage_14n/` | one hotel, 14 nights: `rates.lp.gz`, `bookings.lp.gz`, `levels.json`, `params.json` |
 
 ```

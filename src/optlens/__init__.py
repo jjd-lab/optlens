@@ -1,4 +1,11 @@
-"""optlens — solver-agnostic diagnostics for LP/MILP models (Phase 0 minimal engine)."""
+"""optlens — solver-agnostic diagnostics for LP/MILP models."""
+from importlib.metadata import PackageNotFoundError as _NotInstalled
+from importlib.metadata import version as _version
+
+try:
+    __version__ = _version("optlens")
+except _NotInstalled:  # run from a source checkout without installing
+    __version__ = "0.0.1"
 from .backends import BACKENDS, IIS, race, GurobiBackend, HiGHSBackend, IISNotSupported, LicenseLimit, SCIPBackend, SolveResult
 from .diagnose import (apply_relaxation, check_iis, default_backend, deletion_filter_iis, elastic_model,
                        family_first_iis, fix_conflicts, feas_relax, fix_menu, get_iis, linking_families, lp_relaxation_iis,

@@ -15,7 +15,8 @@
 - Every native IIS is checked: one whose rows are feasible on their own is rejected and rebuilt by removing rows one at
   a time on the same solver. gurobipy 13.0.3's `computeIIS` leaves out a one-variable row on a binary whose fractional
   limit rounds it to 0 (`160 open <= 100` with `open >= 1` returns `open >= 1` alone, which is feasible).
-- The package `optlens`, with `pyproject.toml` and optional `scip` and `gurobi` extras.
+- The package `optlens`, with `pyproject.toml` and the optional extras `scip`, `gurobi`, `pyomo`, `pulp` and `mcp`;
+  `optlens.__version__`; type hints marked with `py.typed`.
 - The tool layer `optlens.session`: `Session`, `Version` and the `TOOLS` schemas, with the time limit and the default
   solver as constructor arguments.
 - `compare_versions` diffs against the optimal plan closest to the first version's (`optlens.closest`, one extra

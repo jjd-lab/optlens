@@ -29,16 +29,17 @@ pip install ".[scip,mcp]"     # core: numpy, scipy, HiGHS
 import optlens as od
 from optlens.session import Session, Version
 
-md = od.load("tests/fixtures/ex_milp_tutorial__rhs_tighten__0.mps")  # LP or MPS
-s = Session({"v0": Version(md, None, "original model")})
-print(s.get_model_overview())   # size, status (here INFEASIBLE), constraint families
-print(s.compute_iis())          # the conflicting constraints, grouped by family
-print(s.fix_menu())             # the smallest change per family that restores feasibility
-print(s.modify_and_resolve(changes=[{"action": "set_rhs", "name": "resource[Monika]", "upper": 1}]))
+if __name__ == "__main__":  # solves run in worker processes, which start by re-importing this script
+    md = od.load("tests/fixtures/ex_milp_tutorial__rhs_tighten__0.mps")  # LP or MPS
+    s = Session({"v0": Version(md, None, "original model")})
+    print(s.get_model_overview())   # size, status (here INFEASIBLE), constraint families
+    print(s.compute_iis())          # the conflicting constraints, grouped by family
+    print(s.fix_menu())             # the smallest change per family that restores feasibility
+    print(s.modify_and_resolve(changes=[{"action": "set_rhs", "name": "resource[Monika]", "upper": 1}]))
 ```
 
-Run it as a script (solves run in worker processes, so a script needs `if __name__ == "__main__":` on platforms that
-spawn them). Every `Session` method returns text, and `optlens.session.TOOLS` holds the matching JSON schemas for an
+Save it as a file and run it from the repository root; the `if __name__ == "__main__":` guard is needed on every
+platform. Every `Session` method returns text, and `optlens.session.TOOLS` holds the matching JSON schemas for an
 agent. A session also covers feasibility relaxation, what-if edits as versions, why-not questions, sensitivity and
 marginal values, suspicious data values, and comparisons between versions or models.
 
@@ -89,11 +90,19 @@ The plugin adds the optlens tools (the `optlens-mcp` server, which must be on th
 how to diagnose, explain and compare, and an optional `optlens:model-analyst` subagent. It keeps one saved model
 context per model (what each constraint and variable family means), written once from the document or code and kept
 in `.optlens/context/` as JSON you can review and commit, so every session describes the model in the same words.
-Details: [plugin/README.md](plugin/README.md).
+Details: [plugin/README.md](https://github.com/jjd-lab/optlens/blob/main/plugin/README.md).
+
+**Security.** optlens runs code on your machine, with your permissions, and has no sandbox:
+- `run_python` (the plugin's code tool) executes the code the agent writes. Its process starts with a short list of
+  environment variables (no API keys or tokens), but it can read and write whatever your user can. In Claude Code you
+  approve each call.
+- Opening a `.py` model (`load("model.py")`, `open_model`) runs that file up to its first solve call.
+
+Open only models and code you trust. To report a vulnerability, see [SECURITY.md](https://github.com/jjd-lab/optlens/blob/main/SECURITY.md).
 
 ## Hotel pack
 
-[packs/hotel/](packs/hotel/README.md) is a synthetic hotel revenue-management model (room type × night × length of stay
+[packs/hotel/](https://github.com/jjd-lab/optlens/blob/main/packs/hotel/README.md) is a synthetic hotel revenue-management model (room type × night × length of stay
 × booking window × rate tier) with its generator, its document, domain notes and helpers. It builds models from a
 few thousand to about 830,000 rows, for trying optlens on something realistic and large.
 
@@ -113,8 +122,14 @@ GitHub issues.
 A planner's session with that agent on the hotel pack's model (one week, after a data load typed one night's group
 target as 1,200 instead of 120); waiting time is cut to two seconds:
 
-![A planner asks why the week's plan is infeasible, approves the fix, and asks which rule costs the most revenue](docs/planner-agent-demo.svg)
+![A planner asks why the week's plan is infeasible, approves the fix, and asks which rule costs the most revenue](https://raw.githubusercontent.com/jjd-lab/optlens/main/docs/planner-agent-demo.svg)
+
+## Contributing
+
+Issues with your own models are the most useful contribution; see
+[CONTRIBUTING.md](https://github.com/jjd-lab/optlens/blob/main/CONTRIBUTING.md) and the
+[code of conduct](https://github.com/jjd-lab/optlens/blob/main/CODE_OF_CONDUCT.md).
 
 ## License
 
-Apache-2.0 ([LICENSE](LICENSE)); third-party credits in [NOTICE](NOTICE).
+Apache-2.0 ([LICENSE](https://github.com/jjd-lab/optlens/blob/main/LICENSE)); third-party credits in [NOTICE](https://github.com/jjd-lab/optlens/blob/main/NOTICE).

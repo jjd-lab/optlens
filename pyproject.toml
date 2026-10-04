@@ -10,20 +10,41 @@ requires-python = ">=3.11"
 license = "Apache-2.0"
 readme = "README.md"
 authors = [{name = "Jessica Dong"}]
+keywords = ["optimization", "linear programming", "MILP", "infeasibility", "IIS", "debugging", "MCP", "Claude Code"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Typing :: Typed",
+]
 dependencies = ["numpy", "scipy", "highspy"]
+
+[project.urls]
+Homepage = "https://optlens.dev"
+Repository = "https://github.com/jjd-lab/optlens"
+Issues = "https://github.com/jjd-lab/optlens/issues"
+Changelog = "https://github.com/jjd-lab/optlens/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 scip = ["pyscipopt"]
 gurobi = ["gurobipy"]
 pulp = ["pulp"]
 pyomo = ["pyomo>=6.7", "packaging"]  # Pyomo needs packaging, undeclared, once gurobipy is importable
-mcp = ["mcp>=2.2"]
+mcp = ["mcp>=2.2", "anyio"]  # the server imports anyio itself
 
 [project.scripts]
 optlens-mcp = "optlens.mcp_server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+optlens = ["py.typed"]
 
 [tool.ruff]
 line-length = 120

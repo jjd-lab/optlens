@@ -73,8 +73,8 @@ class CodeWorkspace:
         self.doc_file = str(Path(doc_path).resolve()) if doc_path else ""
         self.timeout = timeout  # per call; None: TIMEOUT (read at call time)
         # confine: the code may read and write only inside the working directory, these extra paths (a pack, the
-        # model and document) and Python's own installation, and may not start other programs (an evaluation must
-        # not let an agent find tools or answers elsewhere on disk). None: no limits, as for a user's own machine.
+        # model and document) and Python's own installation, and may not start other programs (for testing an agent,
+        # which must not find tools or answers elsewhere on disk). None: no limits, as for a user's own machine.
         self.confine = None if confine is None else [str(Path(p).resolve()) for p in confine]
         # the worker's Session gets these; without them it takes the user's choice from OPTLENS_SOLVER, if any
         self.prefer, self.only_prefer = prefer, only_prefer
@@ -237,7 +237,7 @@ def _worker() -> None:
                 close = difflib.get_close_matches(getattr(e, "name", "") or "", [*user, *PRELOADED], n=1)
                 if close:
                     print(f"[hint: `{close[0]}` exists in this process]")
-            except BaseException:  # noqa: BLE001 - the agent's code may raise anything; it goes back as output
+            except BaseException:  # the agent's code may raise anything; it goes back as output
                 error = True
                 traceback.print_exc(limit=-3)
         user = sorted(n for n in ns if n not in base and not n.startswith("_"))

@@ -2,7 +2,7 @@
 
 Generic checks (a domain pack adds its own): hard rules untouched, change size within tolerance,
 objective within bound, integer variables keep their meaning, no constraint silently dropped.
-Thresholds live in a Policy, stated by the user (or derived from an answer key in an evaluation).
+Thresholds live in a Policy, stated by the user (or derived from a known correct answer when testing an agent).
 """
 from __future__ import annotations
 

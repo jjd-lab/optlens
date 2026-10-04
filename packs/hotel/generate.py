@@ -16,7 +16,7 @@ demand response, under business rules (room types keep their price order, rates 
 to the next, event nights carry a premium, an expected-occupancy promise). Stage 2 is the booking model above with
 those rates and that demand. Without stage-1 levels the booking model is exactly the one-stage model.
 
-Writes a CPLEX LP file with Pyomo-style names, `family(index_index)`, like the other demo models.
+Writes a CPLEX LP file with Pyomo-style names, `family(index_index)`.
 
 Usage:
   python packs/hotel/generate.py --nights 14 --hotels 1 --out hotel_14n.lp

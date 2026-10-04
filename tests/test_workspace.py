@@ -4,6 +4,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from optlens import workspace
 from optlens.workspace import CodeWorkspace
@@ -57,12 +58,13 @@ class TestCodeWorkspace(unittest.TestCase):
         self.assertLess(len(out), workspace.OUT_CAP + 500)
 
     def test_no_api_keys_inside(self):
-        os.environ["ANTHROPIC_API_KEY"] = os.environ.get("ANTHROPIC_API_KEY", "test-key")
-        ws = CodeWorkspace(str(MODEL), Path(tempfile.mkdtemp()))
-        try:
-            out, _ = ws.run_python("import os\nprint(sorted(k for k in os.environ if 'KEY' in k))")
-        finally:
-            ws.close()
+        key = {"ANTHROPIC_API_KEY": os.environ.get("ANTHROPIC_API_KEY", "test-key")}
+        with mock.patch.dict(os.environ, key):
+            ws = CodeWorkspace(str(MODEL), Path(tempfile.mkdtemp()))
+            try:
+                out, _ = ws.run_python("import os\nprint(sorted(k for k in os.environ if 'KEY' in k))")
+            finally:
+                ws.close()
         self.assertIn("[]", out)
 
     def test_timeout_restarts_the_process(self):
@@ -78,7 +80,8 @@ class TestCodeWorkspace(unittest.TestCase):
 
 
 class TestConfinedWorkspace(unittest.TestCase):
-    """An evaluation's workspace: the agent's code works inside its folder, but cannot read elsewhere or run programs."""
+    """A confined workspace (confine=[]): the agent's code works inside its folder, but cannot read elsewhere or run
+    programs."""
 
     def setUp(self):
         self.dir = Path(tempfile.mkdtemp())
@@ -96,9 +99,11 @@ class TestConfinedWorkspace(unittest.TestCase):
 
     def test_files_elsewhere_and_programs_are_refused(self):
         here = Path(__file__).resolve()
-        out, err = self.ws.run_python(f"print(open({str(here)!r}).read()[:20])")
-        self.assertTrue(err)
-        self.assertIn("outside this workspace", out)
+        # the temp directory is always allowed (solvers write there), so a checkout under it is not "elsewhere"
+        if not str(here).startswith(os.path.realpath(tempfile.gettempdir()) + os.sep):
+            out, err = self.ws.run_python(f"print(open({str(here)!r}).read()[:20])")
+            self.assertTrue(err)
+            self.assertIn("outside this workspace", out)
         out, err = self.ws.run_python("import os\nprint(os.listdir('/home'))")
         self.assertTrue(err)
         out, err = self.ws.run_python("import subprocess\nprint(subprocess.run(['ls', '/'], capture_output=True).stdout)")

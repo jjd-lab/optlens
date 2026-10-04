@@ -3,7 +3,7 @@
 Install the engine with its MCP server, then load the plugin:
 
 ```bash
-pip install -e ".[scip,mcp]"          # from the repository root; add [gurobi] if you have a Gurobi license
+pip install ".[scip,mcp]"             # from the repository root; add [gurobi] if you have a Gurobi license
 claude --plugin-dir plugin
 ```
 
@@ -18,7 +18,7 @@ What it adds to Claude Code:
 - the optlens tools (MCP server), including `add_model` and `compare_models` for several models or scenarios side by
   side, `save_model_context` for one saved description of each model (`.optlens/context/`), and `run_python`, a
   persistent Python process with the engine preloaded as `session` (the model loaded once; several steps per call,
-  the cheapest setup in our tests; 50 s per call, its versions separate from the other tools');
+  the cheapest way to run several steps; 50 s per call, its versions separate from the other tools');
 - the `optlens` skill: how to diagnose, explain and compare;
 - the `optlens:model-analyst` subagent (optional): analyzes one open model for the questions it is given and reports
   every number with its source. By default the main conversation answers itself; it sends one analyst per model, in
@@ -26,3 +26,11 @@ What it adds to Claude Code:
   objective, context, output and boundaries (after Anthropic's "How we built our multi-agent research system"). Analysts share the server; calls that open models are serialized, the rest run in
   parallel. Each tool call stops in time for Claude Code's 60 s call timeout (solves 45 s, large IIS searches 40 s;
   results say when a search stopped short).
+
+**Security.** optlens runs code on your machine, with your permissions, and has no sandbox:
+- `run_python` (the plugin's code tool) executes the code the agent writes. Its process starts with a short list of
+  environment variables (no API keys or tokens), but it can read and write whatever your user can. In Claude Code you
+  approve each call.
+- Opening a `.py` model (`load("model.py")`, `open_model`) runs that file up to its first solve call.
+
+Open only models and code you trust. To report a vulnerability, see [SECURITY.md](../SECURITY.md).

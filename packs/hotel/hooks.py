@@ -1,8 +1,9 @@
-"""Hotel pack hooks, for a chat agent that loads domain packs (pack.json, skill.md, hooks.py). startup: loads helpers.py into the workspace as `hotel`, and in a two-stage
-session (rates.lp/.mps and params.json next to the booking model, as `generate.py --pipeline` writes them) opens the
-rate plan as model `rates`. The link between the stages (rates feeds the booking plan) is declared in pack.json
-("links"); the agent's own hook then notices each solved rate-plan version and has the agent ask the planner before it is
-carried with hotel.carry."""
+"""Hotel pack hooks, for the planner chat agent built on optlens (pack.json, skill.md and hooks.py are its pack
+format; the helpers in helpers.py work in any optlens session). startup: loads helpers.py into the workspace as
+`hotel`, and in a two-stage session (rates.lp/.mps and params.json next to the booking model, as
+`generate.py --pipeline` writes them) opens the rate plan as model `rates` and links it to the booking plan
+(`ctx.link`); the agent then notices each solved rate-plan version and asks the planner before it is carried with
+hotel.carry."""
 from __future__ import annotations
 
 from pathlib import Path
