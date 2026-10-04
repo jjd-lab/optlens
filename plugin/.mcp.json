@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "optlens": {
+      "command": "optlens-mcp",
+      "env": {"OPTLENS_SOLVER": "${OPTLENS_SOLVER:-auto}"}
+    }
+  }
+}

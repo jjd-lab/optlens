@@ -1,0 +1,12 @@
+optlens
+Copyright 2026 Jessica Dong
+
+This product is licensed under the Apache License, Version 2.0 (LICENSE).
+
+Test models derived from Gurobi modeling-examples
+(https://github.com/Gurobi/modeling-examples), Copyright Gurobi Optimization, LLC, licensed under the Apache
+License, Version 2.0:
+  tests/fixtures/milp_tutorial__0_RAP.mps                 the resource assignment problem of the milp_tutorial
+                                                          example, written as an MPS file
+  tests/fixtures/ex_milp_tutorial__rhs_tighten__0.mps     the same model with one constraint limit tightened so
+                                                          that it is infeasible (changed for this project)

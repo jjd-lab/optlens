@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "optlens"
+version = "0.0.1"
+description = "Solver-agnostic diagnostics for LP/MILP models: IIS, feasibility relaxation, repair menus, sensitivity, what-if."
+requires-python = ">=3.11"
+license = "Apache-2.0"
+readme = "README.md"
+authors = [{name = "Jessica Dong"}]
+dependencies = ["numpy", "scipy", "highspy"]
+
+[project.optional-dependencies]
+scip = ["pyscipopt"]
+gurobi = ["gurobipy"]
+pulp = ["pulp"]
+pyomo = ["pyomo>=6.7", "packaging"]  # Pyomo needs packaging, undeclared, once gurobipy is importable
+mcp = ["mcp>=2.2"]
+
+[project.scripts]
+optlens-mcp = "optlens.mcp_server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501", "E741"]  # long lines: wrapped by hand at about 120, prompts and tool descriptions run longer
+
+[tool.ruff.lint.per-file-ignores]
+"src/optlens/__init__.py" = ["F401", "I001"]  # the package's public names, grouped by module

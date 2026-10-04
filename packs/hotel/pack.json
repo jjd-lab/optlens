@@ -1,0 +1,6 @@
+{
+ "name": "hotel",
+ "description": "Hotel revenue management (public, synthetic): the booking model, the two-stage pipeline (rate plan, then bookings), its document, skill, helpers and hooks.",
+ "skill": "skill.md",
+ "hooks": "hooks.py"
+}

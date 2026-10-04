@@ -1,0 +1,68 @@
+name: ci
+# Lint and unit tests: HiGHS and SCIP only (no Gurobi license, no API keys). Every push and pull request that touches
+# code runs lint and Linux (Python 3.11-3.13); macOS and Windows, which keep the engine platform-agnostic, run when
+# started by hand (Actions tab, "Run workflow"), before a release or after platform-sensitive changes (solver
+# processes, paths, file loading).
+# PAUSED until 2026-11-01 (the account's free minutes are used up): manual runs only. To resume, put back:
+#   push:          {paths-ignore: ["**/*.md"]}
+#   pull_request:  {paths-ignore: ["**/*.md"]}
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.13"}
+      - run: pip install ruff
+      - run: ruff check src tests packs
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python: ["3.11", "3.12", "3.13"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "${{ matrix.python }}"}
+      - run: pip install ".[scip,mcp,pyomo,pulp]"
+      - name: Engine tests
+        run: python -m unittest discover -s tests -t . -v
+      - name: Hotel pack tests
+        working-directory: packs/hotel
+        run: python -m unittest discover -s tests -t . -v
+      - name: Gurobi tests (pip's size-limited license; tiny models)
+        run: |
+          pip install gurobipy
+          python -m unittest tests.test_licensed_solver -v
+
+  # macOS and Windows only when started by hand (a job-level `if` cannot see the matrix, hence a second job)
+  test-macos-windows:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+        python: ["3.13"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "${{ matrix.python }}"}
+      - run: pip install ".[scip,mcp,pyomo,pulp]"
+      - name: Engine tests
+        run: python -m unittest discover -s tests -t . -v
+      - name: Hotel pack tests
+        working-directory: packs/hotel
+        run: python -m unittest discover -s tests -t . -v

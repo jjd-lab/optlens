@@ -1,0 +1,243 @@
+"""MCP server over optlens.session: `open_model` loads an LP/MPS file into a session, and every tool in
+`optlens.session.TOOLS` then works on it. Run as `optlens-mcp` (stdio); needs the `mcp` extra.
+
+Solver choice: OPTLENS_SOLVER=highs|scip|gurobi prefers that solver; unset or "auto" prefers Gurobi when gurobipy
+is installed (a user who licensed it likely runs it in production) and otherwise routes to HiGHS or SCIP per model.
+A session on Gurobi does every step on Gurobi. Gurobi chosen by the user (OPTLENS_SOLVER or open_model's solver)
+that cannot run a model stops and asks; under "auto" it falls back to HiGHS or SCIP routing, and the first result
+says which solver ran and why. HiGHS and SCIP, both open source, may stand in for each other; results say so.
+
+Model context: the business meaning of each family, written once by the host model from the document or code
+(`save_model_context`) and kept in .optlens/context/ (or OPTLENS_CONTEXT_DIR), keyed by document and family
+structure; `open_model` shows it in the same words every time, so sessions and people use one vocabulary.
+"""
+from __future__ import annotations
+
+import importlib.util
+import re
+import threading
+import time
+from pathlib import Path
+
+import anyio
+from mcp.server.lowlevel import Server
+from mcp.server.stdio import stdio_server
+from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, TextContent, Tool
+
+import optlens as od
+from optlens.context import ContextStore, _inventory_text, context_key, inventory, render, validate
+from optlens.session import MULTI_MODEL_TOOLS, TOOLS, Session, Version, chosen_solver
+from optlens.structure import names_are_meaningful, row_classes
+from optlens.workspace import CodeWorkspace, tool_description
+
+OPEN_MODEL = {
+    "name": "open_model",
+    "description": ("Load an LP or MPS model file (optionally .gz), or a Python file that builds a Pyomo, gurobipy or "
+                    "PuLP model (model.py, or model.py:name for a model or a no-argument builder function; the file is "
+                    "run, and stops at its first solve call, whose model is taken), "
+                    "and make it the current model; its original is "
+                    "version 'v0'. Every other tool works on the current model. Optional document: a text file that "
+                    "describes the model (read with read_model_document). Optional solver: highs, scip or gurobi, "
+                    "to prefer over the default choice."),
+    "input_schema": {"type": "object", "properties": {
+        "path": {"type": "string", "description": "Path to the .lp, .mps or .py file."},
+        "document": {"type": "string", "description": "Path to a document describing the model, optional."},
+        "solver": {"type": "string", "enum": ["highs", "scip", "gurobi"]}},
+        "required": ["path"]},
+}
+
+_ITEM = {"type": "object", "properties": {"name": {"type": "string"}, "description": {"type": "string"}},
+         "required": ["name", "description"]}
+SAVE_MODEL_CONTEXT = {
+    "name": "save_model_context",
+    "description": ("Save the current model's business context once, from its document or code, so every later "
+                    "session shows the same meanings (the project's standard vocabulary for this model). Map EVERY "
+                    "family open_model listed, with its exact name; do not describe families that are not listed (put "
+                    "components the code defines but the model lacks in not_in_model). Explain each index position in "
+                    "order. Mark linking=true for balance, flow, linking and definitional families. Copy numbers "
+                    "exactly. Returns the coverage (families left undescribed) and the context as it will be shown."),
+    "input_schema": {"type": "object", "properties": {
+        "overview": {"type": "string", "description": "3-5 sentence business overview"},
+        "objective": {"type": "string", "description": "direction and what is optimized, in business terms"},
+        "documented_result": {"type": "string", "description": "the solved result the document reports (objective "
+                              "and headline decisions), numbers copied exactly; empty if none"},
+        "indices": {"type": "array", "items": _ITEM, "description": "index sets and what they mean"},
+        "input_data": {"type": "array", "items": _ITEM, "description": "input data and what it means"},
+        "families": {"type": "array", "items": {"type": "object", "properties": {
+            "family": {"type": "string", "description": "exact family name from open_model's list"},
+            "kind": {"type": "string", "enum": ["constraint", "variable"]},
+            "meaning": {"type": "string", "description": "business meaning of one member, one or two sentences"},
+            "index_meaning": {"type": "string", "description": "what each index position means, in order"},
+            "linking": {"type": "boolean"}},
+            "required": ["family", "kind", "meaning"]}},
+        "not_in_model": {"type": "array", "items": {"type": "string"}}},
+        "required": ["overview", "objective", "families"]},
+}
+
+
+RUN_PYTHON_LIMIT = 50.0  # per run_python call: inside Claude Code's 60 s per tool call
+RUN_PYTHON = {
+    "name": "run_python",
+    "description": tool_description(RUN_PYTHON_LIMIT, note=(
+        "It opens the model open_model opened, as its own copy: versions made here and by the other tools are "
+        "separate. After a time-out the process restarts and its variables are gone. ")),
+    "input_schema": {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"]},
+}
+CALL_SOLVE_LIMIT = 45.0  # per solve; the MCP client's per-call timeout is 60 s (Claude Code's default)
+CALL_IIS_BUDGET = 40.0   # a large MIP's IIS search; the result says when it stopped short ("reduced")
+
+
+def available_solvers() -> list[str]:
+    return ["highs"] + [name for name, mod in (("scip", "pyscipopt"), ("gurobi", "gurobipy"))
+                        if importlib.util.find_spec(mod)]
+
+
+def preferred_solver(explicit: str | None = None) -> tuple[str | None, bool]:
+    """(the solver to prefer, whether the user chose it): their choice, else Gurobi when gurobipy is installed."""
+    if choice := chosen_solver(explicit):
+        return choice, True
+    return ("gurobi" if "gurobi" in available_solvers() else None), False
+
+
+class State:
+    def __init__(self, store: ContextStore | None = None):
+        self.session: Session | None = None
+        self.name = ""
+        self.store = store
+        self.md = self.inv = self.key = None
+        self.source = ""
+        self.model_spec, self.doc = "", None  # what open_model loaded, for the run_python workspace
+        self.workspace: CodeWorkspace | None = None  # started on the first run_python call, one per open model
+        self.ws_lock = threading.Lock()  # one snippet at a time: the workspace is one process
+        # Subagents (the plugin's model-analyst) share this server and call tools in parallel. Calls that replace or
+        # add models take this lock; the others run in parallel (the session allocates version ids under its own lock,
+        # and solves run in separate processes), so one analyst's long search does not make another's call time out.
+        self.lock = threading.Lock()
+
+    def _context(self, interp: dict | None) -> str:
+        coverage = validate(interp, self.inv)[1] if interp else None
+        meaningful = names_are_meaningful(self.md)
+        shapes = [] if meaningful else [(label, len(idx), self.md.row_names[idx[0]])
+                                        for label, idx in list(row_classes(self.md).items())[:40]]
+        return render({"inventory": self.inv, "interpretation": interp, "coverage": coverage,
+                       "names_meaningful": meaningful, "shapes": shapes})
+
+    def open_model(self, path: str, document: str | None = None, solver: str | None = None) -> str:
+        file, sep, attr = path.rpartition(":") if re.search(r"\.py:[A-Za-z_]\w*$", path) else (path, "", "")
+        p = Path(file).expanduser().resolve()
+        md = od.load(f"{p}{sep}{attr}")
+        # the document, else a Python model's own code, is what the context is written from
+        doc = Path(document).expanduser().resolve() if document else p if p.suffix == ".py" else None
+        # Claude Code stops waiting for a tool call after 60 s: solves and large searches stop in time to answer
+        prefer, only = preferred_solver(solver)
+        self.session = Session({"v0": Version(md, None, "original model")}, str(doc) if doc else None,
+                               prefer=prefer, only_prefer=only, time_limit=CALL_SOLVE_LIMIT,
+                               large_mip_iis_budget=CALL_IIS_BUDGET)
+        self.name = p.name
+        self.md, self.inv = md, inventory(md)
+        self.model_spec, self.doc = f"{p}{sep}{attr}", doc
+        self.close_workspace()  # its model is the previous one
+        self.source = doc.name if doc else ""
+        self.key = context_key(self.inv, doc.read_text(errors="replace") if doc else "")
+        self.store = self.store or ContextStore()
+        interp = self.store.load(md.name, self.key)
+        if interp is not None:
+            context = f"Saved model context ({self.store.path(md.name, self.key).name}):\n{self._context(interp)}"
+        elif doc is not None and names_are_meaningful(md):
+            context = (f"No saved model context for this model and {doc.name}. Before answering, read the document "
+                       "(read_model_document) and call save_model_context once, mapping every family below; later "
+                       f"sessions will show it in the same words.\nFamilies to map:\n{_inventory_text(self.inv)}")
+        else:
+            context = self._context(None)
+        return (f"opened {p.name}: {md.num_rows} rows, {md.num_cols} columns"
+                f"{' (' + str(int(md.is_int.sum())) + ' integer)' if md.is_mip else ''}; solvers installed: "
+                f"{', '.join(available_solvers())}; preferred: {self.session.prefer or 'none (routed per model)'}\n"
+                + (f"This session uses only {prefer}, the user's choice: in run_python solve with "
+                   f"`od.BACKENDS['{prefer}']`, never another solver.\n" if self.session.strict() else "")
+                + self.session.get_model_overview() + "\n\n" + context)
+
+    def save_model_context(self, **interp) -> str:
+        clean, coverage = validate(interp, self.inv)
+        path = self.store.save(self.md.name, self.key, clean, self.source)
+        missing = coverage["undescribed"]
+        return (f"saved to {path}" + (f"; still undescribed: {', '.join(missing)} (call again with them added)"
+                                      if missing else "; every family is described")
+                + (f"; not in this model, left out: {', '.join(coverage['unknown'])}" if coverage["unknown"] else "")
+                + "\n" + self._context(clean))
+
+    def run_python(self, code: str) -> tuple[str, bool]:
+        with self.ws_lock:
+            if self.workspace is None:
+                import tempfile
+
+                self.workspace = CodeWorkspace(self.model_spec, Path(tempfile.mkdtemp(prefix="optlens-ws-")),
+                                               str(self.doc) if self.doc else None, timeout=RUN_PYTHON_LIMIT,
+                                               prefer=self.session.prefer, only_prefer=self.session.only_prefer)
+            t0 = time.time()
+            out, err = self.workspace.run_python(code)
+            return f"{out}\n[{time.time() - t0:.1f} s]", err
+
+    def close_workspace(self) -> None:
+        if self.workspace is not None:
+            self.workspace.close()
+            self.workspace = None
+
+    def call(self, name: str, args: dict) -> tuple[str, bool]:
+        if name in ("open_model", "add_model", "save_model_context"):
+            with self.lock:
+                return self._call(name, args)
+        return self._call(name, args)
+
+    def _call(self, name: str, args: dict) -> tuple[str, bool]:
+        if name != "open_model" and self.session is None:
+            return "no model is open: call open_model with the path of an .lp, .mps or .py file first", True
+        if name == "run_python":
+            try:
+                return self.run_python(str(args.get("code", "")))
+            except Exception as e:  # the workspace could not start (it says where its log is)
+                return f"{type(e).__name__}: {e}", True
+        if name not in ("open_model", "save_model_context"):
+            return self.session.call(name, args)
+        t0 = time.time()
+        try:
+            out = getattr(self, name)(**args)
+        except Exception as e:  # tool errors go back to the model as error results
+            return f"{type(e).__name__}: {e}", True
+        note = ""
+        if self.session is not None:
+            note, self.session.route_note = self.session.route_note, ""
+        return f"{out}\n[{time.time() - t0:.1f} s]" + (f"\n[{note}]" if note else ""), False
+
+
+def build_server(state: State | None = None) -> Server:
+    state = state or State()
+    tools = [Tool(name=t["name"], description=t["description"], input_schema=t["input_schema"])
+             for t in [OPEN_MODEL, SAVE_MODEL_CONTEXT, *MULTI_MODEL_TOOLS, *TOOLS, RUN_PYTHON]]
+    names = {t.name for t in tools}
+
+    async def list_tools(ctx, params) -> ListToolsResult:
+        return ListToolsResult(tools=tools)
+
+    async def call_tool(ctx, params: CallToolRequestParams) -> CallToolResult:
+        if params.name not in names:
+            return CallToolResult(content=[TextContent(type="text", text=f"unknown tool {params.name}")], is_error=True)
+        # solves run in worker processes; keep the event loop free while waiting for them
+        out, err = await anyio.to_thread.run_sync(state.call, params.name, dict(params.arguments or {}))
+        return CallToolResult(content=[TextContent(type="text", text=out)], is_error=err)
+
+    return Server("optlens", instructions="Debug and explain LP/MILP models: open_model first, then the other tools.",
+                  on_list_tools=list_tools, on_call_tool=call_tool)
+
+
+async def _serve() -> None:
+    server = build_server()
+    async with stdio_server() as (read_stream, write_stream):
+        await server.run(read_stream, write_stream, server.create_initialization_options())
+
+
+def main() -> None:
+    anyio.run(_serve)
+
+
+if __name__ == "__main__":
+    main()
