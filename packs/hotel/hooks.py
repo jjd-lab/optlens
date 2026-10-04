@@ -1,4 +1,4 @@
-"""Hotel pack hooks, for the planner chat agent built on optlens (pack.json, skill.md and hooks.py are its pack
+"""Hotel pack hooks, for optchat, the planner chat agent built on optlens (pack.json, skill.md and hooks.py are its pack
 format; the helpers in helpers.py work in any optlens session). startup: loads helpers.py into the workspace as
 `hotel`, and in a two-stage session (rates.lp/.mps and params.json next to the booking model, as
 `generate.py --pipeline` writes them) opens the rate plan as model `rates` and links it to the booking plan
