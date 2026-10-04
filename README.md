@@ -104,6 +104,12 @@ python -m unittest discover -s tests -t .                             # the engi
 cd packs/hotel && python -m unittest discover -s tests -t .           # the hotel pack
 ```
 
+## Contact
+
+Questions, feedback on your own models, or access to the planner chat agent built on optlens (it answers business
+planners in plain language and asks before applying a change): **hello@optlens.dev**. Bugs and feature requests:
+GitHub issues.
+
 ## License
 
 Apache-2.0 ([LICENSE](LICENSE)); third-party credits in [NOTICE](NOTICE).
