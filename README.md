@@ -110,6 +110,11 @@ Questions, feedback on your own models, or access to the planner chat agent buil
 planners in plain language and asks before applying a change): **hello@optlens.dev**. Bugs and feature requests:
 GitHub issues.
 
+A planner's session with that agent on the hotel pack's model (one week, after a data load typed one night's group
+target as 1,200 instead of 120); waiting time is cut to two seconds:
+
+![A planner asks why the week's plan is infeasible, approves the fix, and asks which rule costs the most revenue](docs/planner-agent-demo.svg)
+
 ## License
 
 Apache-2.0 ([LICENSE](LICENSE)); third-party credits in [NOTICE](NOTICE).
