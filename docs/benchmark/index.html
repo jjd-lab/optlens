@@ -17,22 +17,25 @@
 <body>
 <header class="top"><div class="wrap">
   <a class="brand" href="../">opt<span>lens</span></a>
-  <nav><a href="../benchmark/">Benchmark</a><a href="https://github.com/jjd-lab/optlens">GitHub</a><a class="hide-sm" href="mailto:hello@optlens.dev">Contact</a></nav>
+  <nav><a href="../">Home</a><a href="../benchmark/">Benchmark</a><a href="https://github.com/jjd-lab/optlens">GitHub</a><a class="hide-sm" href="mailto:hello@optlens.dev">Contact</a></nav>
 </div></header>
 <article class="post"><h1 id="debugging-lp-and-milp-models-with-a-coding-agent-a-400-case-benchmark">Debugging LP and MILP models with a coding agent: a 400-case benchmark</h1>
 <p><em>Infeasible, wrong and working models of up to 837,000 constraints: what a debugging engine adds to Claude, and how
 six setups compare.</em></p>
 <h2 id="tldr">TL;DR</h2>
 <ul>
-<li><strong>A coding agent with a solver already gets the answers right:</strong> 95-100 % in every suite, with or without the
-  engine.</li>
-<li><strong>The engine's edge is cost and speed:</strong> the same correct answers at <strong>35-48 % less cost</strong>, and on models too large
+<li><strong>optlens</strong> is an open-source Python library that debugs LP and MILP models: why a model is infeasible, the smallest
+  fix, what a change costs, how two plans differ. An agent uses it through tools (MCP) or from its own Python code.</li>
+<li><strong>A coding agent with a solver already gets the answers right:</strong> 95-100 % in every suite, with or without
+  optlens.</li>
+<li><strong>optlens's edge is cost and speed:</strong> the same correct answers at <strong>35-48 % less cost</strong>, and on models too large
   to read, <strong>35-61 % less time</strong>.</li>
 <li><strong>On linked models, a domain pack wins on correctness too:</strong> where a rate-plan change must flow into the booking
   plan, optchat with the hotel pack answered <strong>4/4</strong> turns right; the same agent without the pack 2/4, and the coding
-  agent with the engine 1/4.</li>
-<li><strong>Plan comparisons show what an edit forces:</strong> 755 "changed" variables become the 9 the edit actually forces.</li>
-<li>The engine, its MCP server and the Claude Code plugin are open source: <a href="https://github.com/jjd-lab/optlens">github.com/jjd-lab/optlens</a>.
+  agent with optlens 1/4.</li>
+<li><strong>Plan comparisons show what an edit forces:</strong> after one edit to an ad-allocation MIP, a plain diff reports 755
+  changed variables, mostly the solver switching between equally good plans; optlens reports the 9 the edit forces.</li>
+<li>optlens, its MCP server and the Claude Code plugin are open source: <a href="https://github.com/jjd-lab/optlens">github.com/jjd-lab/optlens</a>.
   optchat, the planner agent, is available on request: hello@optlens.dev.</li>
 </ul>
 <h2 id="the-six-setups">The six setups</h2>
@@ -84,8 +87,8 @@ model the first time you open it.</p>
 </tr>
 </tbody>
 </table></div>
-<p><strong>What the context is worth.</strong> We gave the bare agent the context in every comparison, so the tables measure the
-engine alone. Without it, the agent lost one case on small models and one on the largest, at 6-8 % more cost:</p>
+<p><strong>What the context is worth.</strong> We gave the bare agent the context in every comparison, so the tables measure
+optlens alone. Without it, the agent lost one case on small models and one on the largest, at 6-8 % more cost:</p>
 <div class="table"><table>
 <thead>
 <tr>
@@ -266,7 +269,7 @@ conversation answers end in a JSON block checked against solver-computed keys.</
 re-solves; on a model too large to read, it reads the file as text and solves a piece of it. If you evaluate LLM tools
 for optimization, compare them with a bare agent and a solver, not with a chat model.</p>
 <h3 id="2-cost-a-third-to-a-half-less-growing-with-model-size">2. Cost: a third to a half less, growing with model size</h3>
-<figure class="chart"><div class="legend"><span><i style="background:var(--series-1)"></i>optlens</span><span><i style="background:var(--series-2)"></i>bare</span></div><svg viewBox="0 0 720 290" role="img" aria-label="Mean cost per case by model size"><line class="grid" x1="16" x2="704" y1="244" y2="244"/><rect class="bar" x="45.2" y="167.1" width="53.8" height="76.9" rx="4" fill="var(--series-1)"><title>optlens, small: $0.056 per case, 5.1 turns, 80/81 right</title></rect><text class="val" x="72.1" y="161.1" text-anchor="middle">$0.056</text><rect class="bar" x="103.0" y="126.5" width="53.8" height="117.5" rx="4" fill="var(--series-2)"><title>bare, small: $0.085 per case, 6.2 turns, 79/81 right</title></rect><text class="val" x="129.9" y="120.5" text-anchor="middle">$0.085</text><text class="note" x="102.0" y="20.0" text-anchor="middle">&#8722;35%</text><text class="cat" x="102.0" y="266.0" text-anchor="middle">small</text><rect class="bar" x="217.2" y="152.9" width="53.8" height="91.1" rx="4" fill="var(--series-1)"><title>optlens, mid: $0.066 per case, 5.7 turns, 56/56 right</title></rect><text class="val" x="244.1" y="146.9" text-anchor="middle">$0.066</text><rect class="bar" x="275.0" y="91.2" width="53.8" height="152.8" rx="4" fill="var(--series-2)"><title>bare, mid: $0.111 per case, 8.3 turns, 56/56 right</title></rect><text class="val" x="301.9" y="85.2" text-anchor="middle">$0.111</text><text class="note" x="274.0" y="20.0" text-anchor="middle">&#8722;40%</text><text class="cat" x="274.0" y="266.0" text-anchor="middle">mid</text><rect class="bar" x="389.2" y="175.0" width="53.8" height="69.0" rx="4" fill="var(--series-1)"><title>optlens, large: $0.050 per case, 3.7 turns, 13/13 right</title></rect><text class="val" x="416.1" y="169.0" text-anchor="middle">$0.050</text><rect class="bar" x="447.0" y="124.1" width="53.8" height="119.9" rx="4" fill="var(--series-2)"><title>bare, large: $0.087 per case, 6.7 turns, 13/13 right</title></rect><text class="val" x="473.9" y="118.1" text-anchor="middle">$0.087</text><text class="note" x="446.0" y="20.0" text-anchor="middle">&#8722;42%</text><text class="cat" x="446.0" y="266.0" text-anchor="middle">large</text><rect class="bar" x="561.2" y="149.5" width="53.8" height="94.5" rx="4" fill="var(--series-1)"><title>optlens, too large to read: $0.069 per case, 6.1 turns, 16/16 right</title></rect><text class="val" x="588.1" y="143.5" text-anchor="middle">$0.069</text><rect class="bar" x="619.0" y="61.4" width="53.8" height="182.6" rx="4" fill="var(--series-2)"><title>bare, too large to read: $0.133 per case, 10.0 turns, 16/16 right</title></rect><text class="val" x="645.9" y="55.4" text-anchor="middle">$0.133</text><text class="note" x="618.0" y="20.0" text-anchor="middle">&#8722;48%</text><text class="cat" x="618.0" y="266.0" text-anchor="middle">too large to read</text></svg><figcaption>Mean cost per case and run, same cases; the percentage is optlens's saving. Hover a bar for turns and correctness.</figcaption></figure>
+<figure class="chart"><div class="legend"><span><i style="background:var(--series-1)"></i>optlens</span><span><i style="background:var(--series-2)"></i>bare (solver only)</span></div><svg viewBox="0 0 720 290" role="img" aria-label="Mean cost per case by model size"><line class="grid" x1="16" x2="704" y1="244" y2="244"/><rect class="bar" x="45.2" y="167.1" width="53.8" height="76.9" rx="4" fill="var(--series-1)"><title>optlens, small: $0.056 per case, 5.1 turns, 80/81 right</title></rect><text class="val" x="72.1" y="161.1" text-anchor="middle">$0.056</text><rect class="bar" x="103.0" y="126.5" width="53.8" height="117.5" rx="4" fill="var(--series-2)"><title>bare (solver only), small: $0.085 per case, 6.2 turns, 79/81 right</title></rect><text class="val" x="129.9" y="120.5" text-anchor="middle">$0.085</text><text class="note" x="102.0" y="20.0" text-anchor="middle">&#8722;35%</text><text class="cat" x="102.0" y="266.0" text-anchor="middle">small</text><rect class="bar" x="217.2" y="152.9" width="53.8" height="91.1" rx="4" fill="var(--series-1)"><title>optlens, mid: $0.066 per case, 5.7 turns, 56/56 right</title></rect><text class="val" x="244.1" y="146.9" text-anchor="middle">$0.066</text><rect class="bar" x="275.0" y="91.2" width="53.8" height="152.8" rx="4" fill="var(--series-2)"><title>bare (solver only), mid: $0.111 per case, 8.3 turns, 56/56 right</title></rect><text class="val" x="301.9" y="85.2" text-anchor="middle">$0.111</text><text class="note" x="274.0" y="20.0" text-anchor="middle">&#8722;40%</text><text class="cat" x="274.0" y="266.0" text-anchor="middle">mid</text><rect class="bar" x="389.2" y="175.0" width="53.8" height="69.0" rx="4" fill="var(--series-1)"><title>optlens, large: $0.050 per case, 3.7 turns, 13/13 right</title></rect><text class="val" x="416.1" y="169.0" text-anchor="middle">$0.050</text><rect class="bar" x="447.0" y="124.1" width="53.8" height="119.9" rx="4" fill="var(--series-2)"><title>bare (solver only), large: $0.087 per case, 6.7 turns, 13/13 right</title></rect><text class="val" x="473.9" y="118.1" text-anchor="middle">$0.087</text><text class="note" x="446.0" y="20.0" text-anchor="middle">&#8722;42%</text><text class="cat" x="446.0" y="266.0" text-anchor="middle">large</text><rect class="bar" x="561.2" y="149.5" width="53.8" height="94.5" rx="4" fill="var(--series-1)"><title>optlens, too large to read: $0.069 per case, 6.1 turns, 16/16 right</title></rect><text class="val" x="588.1" y="143.5" text-anchor="middle">$0.069</text><rect class="bar" x="619.0" y="61.4" width="53.8" height="182.6" rx="4" fill="var(--series-2)"><title>bare (solver only), too large to read: $0.133 per case, 10.0 turns, 16/16 right</title></rect><text class="val" x="645.9" y="55.4" text-anchor="middle">$0.133</text><text class="note" x="618.0" y="20.0" text-anchor="middle">&#8722;48%</text><text class="cat" x="618.0" y="266.0" text-anchor="middle">too large to read</text></svg><figcaption>Mean cost per case and run, same cases; the percentage is optlens's saving. Hover a bar for turns and correctness.</figcaption></figure>
 
 <div class="table"><table>
 <thead>
@@ -315,7 +318,7 @@ scratch script every session.</p>
 <p>Hotel revenue-management models at 4 hotels × 365 nights (279,000 constraints, a 176 MB file) and 12 hotels × 365 nights
 (837,000 constraints, 530 MB), with injected errors; a second set links the hotels with group-wide constraints, so the model no
 longer splits into one hotel at a time.</p>
-<figure class="chart"><div class="legend"><span><i style="background:var(--series-1)"></i>optlens</span><span><i style="background:var(--series-2)"></i>bare</span></div><svg viewBox="0 0 720 232" role="img" aria-label="Tool time on models too large to read"><text class="cat" x="0" y="38">hotel models (10)</text><rect class="bar" x="250" y="16" width="162.0" height="24" rx="4" fill="var(--series-1)"><title>optlens, hotel models (10): 26 min of tool time</title></rect><text class="val" x="420.0" y="33">26 min</text><rect class="bar" x="250" y="44" width="250.2" height="24" rx="4" fill="var(--series-2)"><title>bare, hotel models (10): 40 min of tool time</title></rect><text class="val" x="508.2" y="61">40 min</text><text class="note" x="716" y="38" text-anchor="end">&#8722;35%</text><text class="cat" x="0" y="112">linked hotel group (6)</text><rect class="bar" x="250" y="90" width="156.8" height="24" rx="4" fill="var(--series-1)"><title>optlens, linked hotel group (6): 25 min of tool time</title></rect><text class="val" x="414.8" y="107">25 min</text><rect class="bar" x="250" y="118" width="400.0" height="24" rx="4" fill="var(--series-2)"><title>bare, linked hotel group (6): 64 min of tool time</title></rect><text class="val" x="658.0" y="135">64 min</text><text class="note" x="716" y="112" text-anchor="end">&#8722;61%</text><text class="cat" x="0" y="186">conversations, linked group (2)</text><rect class="bar" x="250" y="164" width="126.4" height="24" rx="4" fill="var(--series-1)"><title>optlens, conversations, linked group (2): 20 min of tool time</title></rect><text class="val" x="384.4" y="181">20 min</text><rect class="bar" x="250" y="192" width="285.9" height="24" rx="4" fill="var(--series-2)"><title>bare, conversations, linked group (2): 46 min of tool time</title></rect><text class="val" x="543.9" y="209">46 min</text><text class="note" x="716" y="186" text-anchor="end">&#8722;56%</text></svg><figcaption>Total tool time per suite (models of 279,000 and 837,000 constraints); the percentage is optlens's saving.</figcaption></figure>
+<figure class="chart"><div class="legend"><span><i style="background:var(--series-1)"></i>optlens</span><span><i style="background:var(--series-2)"></i>bare (solver only)</span></div><svg viewBox="0 0 720 232" role="img" aria-label="Tool time on models too large to read"><text class="cat" x="0" y="38">hotel models (10)</text><rect class="bar" x="250" y="16" width="162.0" height="24" rx="4" fill="var(--series-1)"><title>optlens, hotel models (10): 26 min of tool time</title></rect><text class="val" x="420.0" y="33">26 min</text><rect class="bar" x="250" y="44" width="250.2" height="24" rx="4" fill="var(--series-2)"><title>bare (solver only), hotel models (10): 40 min of tool time</title></rect><text class="val" x="508.2" y="61">40 min</text><text class="note" x="716" y="38" text-anchor="end">&#8722;35%</text><text class="cat" x="0" y="112">linked hotel group (6)</text><rect class="bar" x="250" y="90" width="156.8" height="24" rx="4" fill="var(--series-1)"><title>optlens, linked hotel group (6): 25 min of tool time</title></rect><text class="val" x="414.8" y="107">25 min</text><rect class="bar" x="250" y="118" width="400.0" height="24" rx="4" fill="var(--series-2)"><title>bare (solver only), linked hotel group (6): 64 min of tool time</title></rect><text class="val" x="658.0" y="135">64 min</text><text class="note" x="716" y="112" text-anchor="end">&#8722;61%</text><text class="cat" x="0" y="186">conversations, linked group (2)</text><rect class="bar" x="250" y="164" width="126.4" height="24" rx="4" fill="var(--series-1)"><title>optlens, conversations, linked group (2): 20 min of tool time</title></rect><text class="val" x="384.4" y="181">20 min</text><rect class="bar" x="250" y="192" width="285.9" height="24" rx="4" fill="var(--series-2)"><title>bare (solver only), conversations, linked group (2): 46 min of tool time</title></rect><text class="val" x="543.9" y="209">46 min</text><text class="note" x="716" y="186" text-anchor="end">&#8722;56%</text></svg><figcaption>Total tool time per suite (models of 279,000 and 837,000 constraints); the percentage is optlens's saving.</figcaption></figure>
 
 <div class="table"><table>
 <thead>
@@ -402,7 +405,7 @@ conflicting constraints out of 279,000-837,000, found in 4 to 58 seconds.</p>
 </tr>
 <tr>
 <td>anything else, in code</td>
-<td><code>run_python</code> (the engine preloaded as <code>session</code>)</td>
+<td><code>run_python</code> (optlens preloaded as <code>session</code>)</td>
 <td>the code setup, every suite</td>
 </tr>
 </tbody>
@@ -434,7 +437,7 @@ conflicting constraints out of 279,000-837,000, found in 4 to 58 seconds.</p>
 </tr>
 </tbody>
 </table></div>
-<p>Calling the engine from code is the cheapest setup: several steps per call, one model load. <strong>Claude Code with the
+<p>Calling optlens from code is the cheapest setup: several steps per call, one model load. <strong>Claude Code with the
 plugin</strong> answered 5/5 questions comparing three ad-allocation scenarios (three 9,680-variable MIPs opened side by side:
 status and objectives, a what-if on one scenario, the smallest feasible budget of another), at $0.14 a question (a
 small test).</p>
@@ -481,7 +484,7 @@ for checks, plain language and the planner's approval before a change becomes th
 pack decides: when the planner changes the rate plan, the pack's helper carries the new prices and demand into the
 booking plan exactly, in 1.5 seconds of tool time. Without it, both agents rebuilt or estimated the link (110 and 277
 seconds) and got turns wrong.</p>
-<p><strong>A new business domain needs no code change</strong> to the engine or the agents:</p>
+<p><strong>A new business domain needs no code change</strong> to optlens or the agents:</p>
 <div class="table"><table>
 <thead>
 <tr>
@@ -536,7 +539,7 @@ forces, adding up to the +32.4 cost, instead of a 779-variable reshuffle.</p>
 <p>optlens flags inputs that break their own pattern (a limit unlike its siblings', a flipped sense, an out-of-scale
 coefficient, a missing constraint) and solves each flag's undo, alone and together. On 221 cases with a known error, it hands
 over a verified correct fix for 47, and a wrong one for 2.</p>
-<h2 id="what-the-engine-adds-when-the-agent-is-already-right">What the engine adds when the agent is already right</h2>
+<h2 id="what-optlens-adds-when-the-agent-is-already-right">What optlens adds when the agent is already right</h2>
 <div class="table"><table>
 <thead>
 <tr>
@@ -578,13 +581,13 @@ over a verified correct fix for 47, and a wrong one for 2.</p>
 <code>codex mcp add optlens -- optlens-mcp</code>; in Cursor, VS Code or Claude Desktop, one line in the MCP config (the README
 has each). The agent gets the tools and the method with them. optchat and domain packs for your models:
 hello@optlens.dev.</p>
-<p>The benchmark itself stays private, so that it keeps measuring new versions of the engine fairly; the tables above
+<p>The benchmark itself stays private, so that it keeps measuring new versions of optlens fairly; the tables above
 are generated from its recorded runs. Issues with your own models are the most useful feedback we can get: open a
 GitHub issue or write to hello@optlens.dev.</p>
 <h2 id="credits">Credits</h2>
 <p>Business example models from Gurobi's modeling-examples (Apache-2.0). Two-error and cascading cases from
 OR-Debug-Bench / ORLoopBench (Ao, Simchi-Levi and Wang, arXiv 2601.21008; data CC BY 4.0), with constraint names changed
-and cases filtered. Netlib LP (infeasible set collected by J. Chinneck) and MIPLIB 2017 instances.</p></article>
+and cases filtered. Netlib LP (infeasible set collected by J. Chinneck) and MIPLIB 2017 instances.</p><p><a href="../">&larr; Back to optlens</a></p></article>
 <footer class="bottom"><div class="wrap">
   <span>optlens is open source (Apache-2.0)</span><a href="https://github.com/jjd-lab/optlens">GitHub</a><a href="mailto:hello@optlens.dev">hello@optlens.dev</a>
 </div></footer>

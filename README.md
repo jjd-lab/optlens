@@ -127,9 +127,9 @@ cd packs/hotel && python -m unittest discover -s tests -t .           # the hote
 
 ## Contact
 
-Questions, feedback on your own models, or access to **optchat**, the planner chat agent built on optlens (it answers
-business planners in plain language and asks before applying a change; available on request):
-**hello@optlens.dev**. Bugs and feature requests: GitHub issues.
+Questions, feedback on your own models, or access to **optchat**, the chat agent built on optlens for the people who
+act on a model's plan (it keeps every change as a version, compares scenarios, carries a change across linked models,
+and applies nothing until the planner approves; available on request): **hello@optlens.dev**. Bugs and feature requests: GitHub issues.
 
 A planner's session with optchat on the hotel pack's model (a 14-night plan, after a data load typed one night's group
 target as 1,200 instead of 120). Each answer ends with the engine calls, time and cost it took; waiting time is cut
