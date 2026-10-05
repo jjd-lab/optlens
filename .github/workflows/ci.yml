@@ -1,11 +1,13 @@
 name: ci
 # Lint and unit tests: HiGHS and SCIP only (no Gurobi license, no API keys). Every push and pull request that touches
-# code runs lint and Linux (Python 3.11-3.13); macOS and Windows, which keep the engine platform-agnostic, run when
+# code runs lint and Linux (Python 3.13 while the repo is private, to save minutes; put back "3.11", "3.12" when it
+# goes public, as public repos' minutes are free); macOS and Windows, which keep the engine platform-agnostic, run when
 # started by hand (Actions tab, "Run workflow"), before a release or after platform-sensitive changes (solver
 # processes, paths, file loading).
-# PAUSED until 2026-11-01 (the account's free minutes are used up): manual runs only. To resume, put back:
-#   push:          {paths-ignore: ["**/*.md"]}
-#   pull_request:  {paths-ignore: ["**/*.md"]}
+# PAUSED until 2026-11-01 (the account's free minutes are used up): manual runs only. To resume, put back (docs/ is the
+# site, deployed by Cloudflare, not tested here):
+#   push:          {paths-ignore: ["**/*.md", "docs/**", "wrangler.jsonc"]}
+#   pull_request:  {paths-ignore: ["**/*.md", "docs/**", "wrangler.jsonc"]}
 on:
   workflow_dispatch:
 
@@ -28,7 +30,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        python: ["3.11", "3.12", "3.13"]
+        python: ["3.13"]  # "3.11", "3.12" back at launch
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
