@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Can a coding agent debug your optimization model? We measured it. | optlens</title>
-<meta name="description" content="A benchmark of 400 broken and working LP/MILP models, up to 837,000 rows: what a dedicated debugging engine adds to a coding agent.">
+<title>Debugging LP and MILP models with a coding agent: a 400-case benchmark | optlens</title>
+<meta name="description" content="A 400-case benchmark on infeasible, wrong and working LP/MILP models of up to 837,000 constraints: what a debugging engine adds to a coding agent.">
 <link rel="canonical" href="https://optlens.dev/benchmark/">
-<meta property="og:title" content="Can a coding agent debug your optimization model? We measured it. | optlens">
-<meta property="og:description" content="A benchmark of 400 broken and working LP/MILP models, up to 837,000 rows: what a dedicated debugging engine adds to a coding agent.">
+<meta property="og:title" content="Debugging LP and MILP models with a coding agent: a 400-case benchmark | optlens">
+<meta property="og:description" content="A 400-case benchmark on infeasible, wrong and working LP/MILP models of up to 837,000 constraints: what a debugging engine adds to a coding agent.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://optlens.dev/benchmark/">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,9 +19,9 @@
   <a class="brand" href="../">opt<span>lens</span></a>
   <nav><a href="../benchmark/">Benchmark</a><a href="https://github.com/jjd-lab/optlens">GitHub</a><a class="hide-sm" href="mailto:hello@optlens.dev">Contact</a></nav>
 </div></header>
-<article class="post"><h1 id="can-a-coding-agent-debug-your-optimization-model-we-measured-it">Can a coding agent debug your optimization model? We measured it.</h1>
-<p><em>400 broken and working LP/MILP models, up to 837,000 rows: what a debugging engine adds to Claude, and how six
-setups compare.</em></p>
+<article class="post"><h1 id="debugging-lp-and-milp-models-with-a-coding-agent-a-400-case-benchmark">Debugging LP and MILP models with a coding agent: a 400-case benchmark</h1>
+<p><em>Infeasible, wrong and working models of up to 837,000 constraints: what a debugging engine adds to Claude, and how
+six setups compare.</em></p>
 <h2 id="tldr">TL;DR</h2>
 <ul>
 <li><strong>A coding agent with a solver already gets the answers right:</strong> 95-100 % in every suite, with or without the
@@ -106,7 +106,7 @@ engine alone. Without it, the agent lost one case on small models and one on the
 <td>$0.129</td>
 </tr>
 <tr>
-<td>8 hotel models at 279,000-837,000 rows: first fix right</td>
+<td>8 hotel models of 279,000-837,000 constraints: first fix right</td>
 <td>8/8</td>
 <td>7/8</td>
 </tr>
@@ -117,9 +117,9 @@ engine alone. Without it, the agent lost one case on small models and one on the
 </tr>
 </tbody>
 </table></div>
-<p>Both misses are where meanings matter. On a small anonymous model, with no meanings for the rows, the agent proposed
-deleting a block of them. On a 279,000-row hotel model with one demand forecast typed ten times too high, it searched
-for the wrong value without knowing which rows are demand and ran out of turns; with the context it found it.</p>
+<p>Both misses are where meanings matter. On a small anonymous model, with no meanings for its constraints, the agent
+proposed deleting a block of them. On a 279,000-constraint hotel model with one demand forecast typed ten times too
+high, it searched for the wrong value without knowing which constraints are demand and ran out of turns; with the context it found it.</p>
 <h2 id="what-we-measured">What we measured</h2>
 <p><strong>400 cases</strong>, each with a solver-verified answer key:</p>
 <div class="table"><table>
@@ -147,7 +147,7 @@ for the wrong value without knowing which rows are demand and ran out of turns; 
 <td>diagnosis only</td>
 </tr>
 <tr>
-<td>Solves to a wrong optimum (sign, coefficient, dropped row, big-M; documented values off by 20-25 %)</td>
+<td>Solves to a wrong optimum (sign, coefficient, dropped constraint, big-M; documented values off by 20-25 %)</td>
 <td>70</td>
 <td>"This plan looks wrong. Why?"</td>
 </tr>
@@ -167,7 +167,7 @@ for the wrong value without knowing which rows are demand and ran out of turns; 
 <td>"How do these plans differ?"</td>
 </tr>
 <tr>
-<td>Hotel revenue-management models at 279,000 and 837,000 rows, infeasible or wrong</td>
+<td>Hotel revenue-management models of 279,000 and 837,000 constraints, infeasible or wrong</td>
 <td>16</td>
 <td>the same questions, on models too large to read</td>
 </tr>
@@ -246,12 +246,12 @@ conversation answers end in a JSON block checked against solver-computed keys.</
 <td>7/7</td>
 </tr>
 <tr>
-<td>Hotel models at 279k and 837k rows</td>
+<td>Hotel models of 279,000 and 837,000 constraints</td>
 <td>10/10</td>
 <td>10/10</td>
 </tr>
 <tr>
-<td>Hotel group linked by group-wide rows, 279k and 837k rows</td>
+<td>Hotel group linked by group-wide constraints, 279,000 and 837,000 constraints</td>
 <td>6/6</td>
 <td>6/6</td>
 </tr>
@@ -280,7 +280,7 @@ for optimization, compare them with a bare agent and a solver, not with a chat m
 </thead>
 <tbody>
 <tr>
-<td>small (rows × columns &lt; 10⁴)</td>
+<td>small (constraints × variables &lt; 10⁴)</td>
 <td>80/81 / 79/81</td>
 <td>$0.056, 5.1</td>
 <td>$0.085, 6.2</td>
@@ -301,7 +301,7 @@ for optimization, compare them with a bare agent and a solver, not with a chat m
 <td>42 %</td>
 </tr>
 <tr>
-<td>too large to read (50,000+ rows)</td>
+<td>too large to read (50,000+ constraints)</td>
 <td>16/16 / 16/16</td>
 <td>$0.069, 6.1</td>
 <td>$0.133, 10.0</td>
@@ -312,10 +312,10 @@ for optimization, compare them with a bare agent and a solver, not with a chat m
 <p>Mean per case and run, on the same cases. The bare agent gets there, but it rebuilds the diagnostic machinery in a
 scratch script every session.</p>
 <h3 id="3-time-on-models-too-large-to-read">3. Time on models too large to read</h3>
-<p>Hotel revenue-management models at 4 hotels × 365 nights (279,000 rows, a 176 MB file) and 12 hotels × 365 nights
-(837,000 rows, 530 MB), with injected errors; a second set links the hotels with group-wide rows, so the model no
+<p>Hotel revenue-management models at 4 hotels × 365 nights (279,000 constraints, a 176 MB file) and 12 hotels × 365 nights
+(837,000 constraints, 530 MB), with injected errors; a second set links the hotels with group-wide constraints, so the model no
 longer splits into one hotel at a time.</p>
-<figure class="chart"><div class="legend"><span><i style="background:var(--series-1)"></i>optlens</span><span><i style="background:var(--series-2)"></i>bare</span></div><svg viewBox="0 0 720 232" role="img" aria-label="Tool time on models too large to read"><text class="cat" x="0" y="38">hotel models (10)</text><rect class="bar" x="250" y="16" width="162.0" height="24" rx="4" fill="var(--series-1)"><title>optlens, hotel models (10): 26 min of tool time</title></rect><text class="val" x="420.0" y="33">26 min</text><rect class="bar" x="250" y="44" width="250.2" height="24" rx="4" fill="var(--series-2)"><title>bare, hotel models (10): 40 min of tool time</title></rect><text class="val" x="508.2" y="61">40 min</text><text class="note" x="716" y="38" text-anchor="end">&#8722;35%</text><text class="cat" x="0" y="112">linked hotel group (6)</text><rect class="bar" x="250" y="90" width="156.8" height="24" rx="4" fill="var(--series-1)"><title>optlens, linked hotel group (6): 25 min of tool time</title></rect><text class="val" x="414.8" y="107">25 min</text><rect class="bar" x="250" y="118" width="400.0" height="24" rx="4" fill="var(--series-2)"><title>bare, linked hotel group (6): 64 min of tool time</title></rect><text class="val" x="658.0" y="135">64 min</text><text class="note" x="716" y="112" text-anchor="end">&#8722;61%</text><text class="cat" x="0" y="186">conversations, linked group (2)</text><rect class="bar" x="250" y="164" width="126.4" height="24" rx="4" fill="var(--series-1)"><title>optlens, conversations, linked group (2): 20 min of tool time</title></rect><text class="val" x="384.4" y="181">20 min</text><rect class="bar" x="250" y="192" width="285.9" height="24" rx="4" fill="var(--series-2)"><title>bare, conversations, linked group (2): 46 min of tool time</title></rect><text class="val" x="543.9" y="209">46 min</text><text class="note" x="716" y="186" text-anchor="end">&#8722;56%</text></svg><figcaption>Total tool time per row (279,000 and 837,000 rows); the percentage is optlens's saving.</figcaption></figure>
+<figure class="chart"><div class="legend"><span><i style="background:var(--series-1)"></i>optlens</span><span><i style="background:var(--series-2)"></i>bare</span></div><svg viewBox="0 0 720 232" role="img" aria-label="Tool time on models too large to read"><text class="cat" x="0" y="38">hotel models (10)</text><rect class="bar" x="250" y="16" width="162.0" height="24" rx="4" fill="var(--series-1)"><title>optlens, hotel models (10): 26 min of tool time</title></rect><text class="val" x="420.0" y="33">26 min</text><rect class="bar" x="250" y="44" width="250.2" height="24" rx="4" fill="var(--series-2)"><title>bare, hotel models (10): 40 min of tool time</title></rect><text class="val" x="508.2" y="61">40 min</text><text class="note" x="716" y="38" text-anchor="end">&#8722;35%</text><text class="cat" x="0" y="112">linked hotel group (6)</text><rect class="bar" x="250" y="90" width="156.8" height="24" rx="4" fill="var(--series-1)"><title>optlens, linked hotel group (6): 25 min of tool time</title></rect><text class="val" x="414.8" y="107">25 min</text><rect class="bar" x="250" y="118" width="400.0" height="24" rx="4" fill="var(--series-2)"><title>bare, linked hotel group (6): 64 min of tool time</title></rect><text class="val" x="658.0" y="135">64 min</text><text class="note" x="716" y="112" text-anchor="end">&#8722;61%</text><text class="cat" x="0" y="186">conversations, linked group (2)</text><rect class="bar" x="250" y="164" width="126.4" height="24" rx="4" fill="var(--series-1)"><title>optlens, conversations, linked group (2): 20 min of tool time</title></rect><text class="val" x="384.4" y="181">20 min</text><rect class="bar" x="250" y="192" width="285.9" height="24" rx="4" fill="var(--series-2)"><title>bare, conversations, linked group (2): 46 min of tool time</title></rect><text class="val" x="543.9" y="209">46 min</text><text class="note" x="716" y="186" text-anchor="end">&#8722;56%</text></svg><figcaption>Total tool time per suite (models of 279,000 and 837,000 constraints); the percentage is optlens's saving.</figcaption></figure>
 
 <div class="table"><table>
 <thead>
@@ -348,7 +348,7 @@ longer splits into one hotel at a time.</p>
 </tbody>
 </table></div>
 <p>optlens finds the conflict from the solver's own proof of infeasibility, so it never needs the whole model: 13 to 37
-conflicting rows out of 279,000-837,000, found in 4 to 58 seconds.</p>
+conflicting constraints out of 279,000-837,000, found in 4 to 58 seconds.</p>
 <h3 id="4-what-you-can-ask">4. What you can ask</h3>
 <p>Every capability is a tool in Python, the MCP server and the plugin:</p>
 <div class="table"><table>
@@ -457,7 +457,7 @@ small test).</p>
 <td>no pack for these models</td>
 </tr>
 <tr>
-<td>Linked hotel group, 279k-837k rows (2)</td>
+<td>Linked hotel group, 279,000-837,000 constraints (2)</td>
 <td>9/9, $0.20</td>
 <td>9/9, $0.38</td>
 <td>9/9, $0.41</td>
@@ -534,7 +534,7 @@ ties: over 99 % of the reported changes on the ad min-cost what-ifs. optlens com
 forces, adding up to the +32.4 cost, instead of a 779-variable reshuffle.</p>
 <h3 id="8-checked-fixes-for-suspicious-values">8. Checked fixes for suspicious values</h3>
 <p>optlens flags inputs that break their own pattern (a limit unlike its siblings', a flipped sense, an out-of-scale
-coefficient, a missing row) and solves each flag's undo, alone and together. On 221 cases with a known error, it hands
+coefficient, a missing constraint) and solves each flag's undo, alone and together. On 221 cases with a known error, it hands
 over a verified correct fix for 47, and a wrong one for 2.</p>
 <h2 id="what-the-engine-adds-when-the-agent-is-already-right">What the engine adds when the agent is already right</h2>
 <div class="table"><table>
@@ -583,7 +583,7 @@ are generated from its recorded runs. Issues with your own models are the most u
 GitHub issue or write to hello@optlens.dev.</p>
 <h2 id="credits">Credits</h2>
 <p>Business example models from Gurobi's modeling-examples (Apache-2.0). Two-error and cascading cases from
-OR-Debug-Bench / ORLoopBench (Ao, Simchi-Levi and Wang, arXiv 2601.21008; data CC BY 4.0), with row names changed
+OR-Debug-Bench / ORLoopBench (Ao, Simchi-Levi and Wang, arXiv 2601.21008; data CC BY 4.0), with constraint names changed
 and cases filtered. Netlib LP (infeasible set collected by J. Chinneck) and MIPLIB 2017 instances.</p></article>
 <footer class="bottom"><div class="wrap">
   <span>optlens is open source (Apache-2.0)</span><a href="https://github.com/jjd-lab/optlens">GitHub</a><a href="mailto:hello@optlens.dev">hello@optlens.dev</a>

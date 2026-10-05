@@ -33,16 +33,17 @@ codex mcp add optlens -- optlens-mcp                           # Codex (others: 
 </div></div>
 
 <section class="soft"><div class="wrap">
-  <h2 class="sec">Measured on 400 models</h2>
-  <p class="sub">400 broken and working models, up to 837,000 rows, each with a solver-verified answer key. Claude
-  with optlens against the same agent with only a solver, both given the same model context.</p>
+  <h2 class="sec">Measured on 400 cases</h2>
+  <p class="sub">Infeasible, wrong and working LP and MILP models of up to 837,000 constraints, each case with a
+  solver-verified answer key. Claude with optlens is compared with the same agent given only a solver; both get the same
+  model context.</p>
   <div class="stats">
-    <div class="stat"><div class="n">95-100 %</div><div class="l">correct in every suite, with or without the engine:
-    the answers were never the gap</div></div>
+    <div class="stat"><div class="n">95-100 %</div><div class="l">correct in every suite, with or without the
+    engine</div></div>
     <div class="stat"><div class="n">35-48 %</div><div class="l">lower cost for the same correct answers, growing with
     model size</div></div>
     <div class="stat"><div class="n">35-61 %</div><div class="l">less time on models too large to read (279,000 to
-    837,000 rows)</div></div>
+    837,000 constraints)</div></div>
     <div class="stat"><div class="n">755 &rarr; 9</div><div class="l">plan changes reported after an edit: the forced
     ones, not the solver's reshuffle</div></div>
   </div>
@@ -55,7 +56,7 @@ codex mcp add optlens -- optlens-mcp                           # Codex (others: 
   <p class="sub">Every answer comes from a solve, and every recommended fix is re-solved before it is offered.</p>
   <div class="cards">
     <div class="card"><h3>Why is it infeasible?</h3><p>The conflicting constraints (an IIS), grouped by family, even
-    on models with hundreds of thousands of rows.</p></div>
+    on models with hundreds of thousands of constraints.</p></div>
     <div class="card"><h3>What fixes it?</h3><p>The smallest change per family that restores feasibility, with the
     best plan it allows, and inputs that break their own pattern, each with its undo already solved.</p></div>
     <div class="card"><h3>What if&hellip;?</h3><p>Edits as versions, why-not questions, marginal values and

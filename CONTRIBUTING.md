@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping. The most useful contribution is a model optlens gets wrong: open an issue with the model file (or
+The most useful contribution is a model optlens gets wrong: open an issue with the model file (or
 a smaller one that shows the same thing), the question you asked, what optlens said, and what you expected.
 
 ## Development setup

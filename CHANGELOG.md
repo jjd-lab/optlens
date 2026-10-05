@@ -25,14 +25,13 @@
   `optlens.__version__`; type hints marked with `py.typed`.
 - The tool layer `optlens.session`: `Session`, `Version` and the `TOOLS` schemas, with the time limit and the default
   solver as constructor arguments.
-- `compare_versions` diffs against the optimal plan closest to the first version's (`optlens.closest`, one extra
-  solve), so on models with many equal-cost plans it reports the forced changes, not the solver's tie-breaking.
-- `compare_versions`: what differs between two solved versions, per family and per variable; `why_not` reports how
-  many variables changed and groups them by family and by the forced variable's indices.
+- `compare_versions`: what differs between two solved versions, per family and per variable, against the optimal plan
+  closest to the first version's (`optlens.closest`, one extra solve), so on models with many equal-cost plans it
+  reports the forced changes, not the solver's tie-breaking. `why_not` reports how many variables changed and groups
+  them by family and by the forced variable's indices.
 - `marginal_value` prints the new bound, the objective and the plain change each way; sensitivity cost ranges are
   printed in words.
 - Hard solve time limits work on Windows (the worker processes fall back from forkserver to spawn).
-- CI: ruff, and the unit tests on Linux, macOS and Windows.
 - `optlens.lpfile`: an LP-file reader with no solver library, so Gurobi-written `.lp` files (bracketed names, which
   HiGHS rejects) load without gurobipy; it matched Gurobi's reader on every LP file it was tested on.
 - Pyomo models load directly: `optlens.from_pyomo(model)`, or `load("model.py")` / `load("model.py:name")` for the
@@ -48,10 +47,8 @@
 - Several models in one session: `Session.add_model(path, name)` and `compare_models` (status, objective and the same
   per-family metrics side by side), offered by the MCP server; `compare_versions` works across models that share their
   variables.
-- Plugin subagent `optlens:model-analyst` (general purpose: one open model, the brief's questions and metrics, a fixed
-  report with every number's source; it loads the optlens skill). The MCP server runs tool calls in parallel (only
-  calls that open models are serialized; the session allocates version ids under a lock) and keeps each call within
-  Claude Code's 60 s timeout. `compare_models` with one name gives that model's summary, including the value of each
+- The MCP server runs tool calls in parallel (only calls that open models are serialized; the session allocates
+  version ids under a lock) and keeps each call within Claude Code's 60 s timeout. `compare_models` with one name gives that model's summary, including the value of each
   one-row constraint (a budget's spend).
 - Suspicious values on anonymous models: senses are compared within rows of the same shape and within runs of
   consecutive rows, and a row flagged by several groups gets the tightest group's reason.

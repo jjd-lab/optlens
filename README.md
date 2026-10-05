@@ -69,14 +69,14 @@ Gurobi, each model goes to HiGHS or SCIP (a larger MIP's first solve races both)
   is installed and falls back to HiGHS or SCIP for a model Gurobi cannot run, and says so.
 - **HiGHS and SCIP stand in for each other** where only one can do a step (HiGHS has no MIP IIS; SCIP does), and the
   result names the solver that did it.
-- **Every IIS is checked.** A solver's IIS whose rows are feasible on their own is rejected and rebuilt by removing
-  rows one at a time on the same solver. This guards against a known gurobipy 13.0.3 bug: `computeIIS` leaves out a
+- **Every IIS is checked.** A solver's IIS whose constraints are feasible on their own is rejected and rebuilt by
+  removing constraints one at a time on the same solver. This guards against a known gurobipy 13.0.3 bug: `computeIIS` leaves out a
   one-variable row on a binary whose fractional limit rounds it to 0 (`160 open <= 100` with `open >= 1` returns
   `open >= 1` alone, which is feasible).
-- **Gurobi is tested on the size-limited license only** (2,000 rows and 2,000 columns). Large models under a full
+- **Gurobi is tested on the size-limited license only** (2,000 constraints and 2,000 variables). Large models under a full
   license, and Gurobi's IIS and relaxations at scale, are untested; reports are welcome.
 
-On large models (hundreds of thousands of rows) the IIS search starts near the conflict, from HiGHS's infeasibility
+On large models (hundreds of thousands of constraints) the IIS search starts near the conflict, from HiGHS's infeasibility
 proof, instead of searching the whole model.
 
 ## Use it with your agent
@@ -116,7 +116,7 @@ Open only models and code you trust. To report a vulnerability, see [SECURITY.md
 
 [packs/hotel/](https://github.com/jjd-lab/optlens/blob/main/packs/hotel/README.md) is a synthetic hotel revenue-management model (room type × night × length of stay
 × booking window × rate tier) with its generator, its document, domain notes and helpers. It builds models from a
-few thousand to about 830,000 rows, for trying optlens on something realistic and large.
+few thousand to 837,000 constraints, for trying optlens on something realistic and large.
 
 ## Tests
 
