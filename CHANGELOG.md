@@ -1,6 +1,22 @@
 # Changelog
 
 ## 0.0.1 (unreleased, 2026-09-30)
+- Found in a fresh-install trial on a 48k-row LP (2026-10-05):
+  - A large LP's IIS starts near the conflict, as a large MIP's does: HiGHS's whole-model IIS ran 305 s without
+    finishing on an LP whose conflict is 2 rows; the localized search finds it in 0.4 s.
+  - `fix_menu` 86 s -> 9 s: `ModelData.col_index` looked names up with `tuple.index` (76 s in one add_row of 103k
+    terms); it now keeps a name -> position map per names tuple.
+  - `compare_versions` no longer fails when a version dropped or added a constraint: it compares the rows both
+    versions have and lists the others.
+  - `suspicious_values` ranks each tier farthest from typical first (by order of magnitude). It listed flags in file
+    order and cut at 40, so a demand of 35,200 against a typical 485 came 40th, after values 4x their group median.
+  - The MCP server checks each call's arguments against the tool's schema and, when they do not fit, returns the
+    problems and the schema without running anything. Claude Code can defer a server's tools, so an agent may call
+    one whose schema it never saw (it guessed `label`, `constraint` and `rhs` for `modify_and_resolve`).
+    `try_options` checks its changes against the same change schema as `modify_and_resolve`.
+  - The install lines: `claude plugin install` has no `--marketplace` option (the site's line failed); the plugin
+    installs with `claude plugin marketplace add jjd-lab/optlens`, then `claude plugin install optlens@optlens`. The
+    Claude Code CLI waits longer than 60 s for a tool call; the 45 s solve limit is for MCP clients that stop at 60 s.
 - Quadratic objectives: a non-convex one goes to SCIP automatically (HiGHS returned an unexplained status), and its
   sensitivity report says why there are no shadow prices; Gurobi no longer fails on one (it read shadow prices
   Gurobi does not have for a non-convex QP). `ModelData.convex_objective()` checks the sense-adjusted quadratic term.

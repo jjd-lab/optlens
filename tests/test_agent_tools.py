@@ -65,6 +65,15 @@ class TestAgentTools(unittest.TestCase):
         self.assertIn("y: total 2 -> 2, nonzero 2 -> 2 of 4", out)
         self.assertIn("variables changed: 2 of 4 (y: 1 up, 1 down)", out)
 
+    def test_compare_versions_after_a_dropped_constraint(self):
+        # a waived rule (drop_constraint) leaves the versions with different rows
+        s = Session({"v0": Version(model().set_row_bounds("target", lo=6.0), None, "original")})
+        s.modify_and_resolve("v0", "no cap", [{"action": "drop_constraint", "name": "cap"},
+                                              {"action": "set_rhs", "name": "target", "lower": 7}])
+        out = s.compare_versions()
+        self.assertIn("v0: OPTIMAL, objective 6; v1: OPTIMAL, objective 7; change 1", out)
+        self.assertIn("rows only in the first version: 1; e.g. cap", out)
+
     def test_try_options(self):
         out = self.s.try_options(options=[{"label": "budget 31", "changes": [{"action": "set_rhs", "name": "budget", "upper": 31}]},
                                           {"label": "budget 30", "changes": [{"action": "set_rhs", "name": "budget", "upper": 30}]}])

@@ -35,7 +35,7 @@ scip = ["pyscipopt"]
 gurobi = ["gurobipy"]
 pulp = ["pulp"]
 pyomo = ["pyomo>=6.7", "packaging"]  # Pyomo needs packaging, undeclared, once gurobipy is importable
-mcp = ["mcp>=2.2", "anyio"]  # the server imports anyio itself
+mcp = ["mcp>=2.2", "anyio", "jsonschema"]  # the server imports anyio and jsonschema itself
 
 [project.scripts]
 optlens-mcp = "optlens.mcp_server:main"

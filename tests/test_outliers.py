@@ -38,6 +38,11 @@ class TestOutliers(unittest.TestCase):
         self.assertEqual(flags[0]["name"], "cap[9]")
         self.assertTrue(flags[0]["in_iis"])
 
+    def test_the_farthest_value_ranks_first_and_survives_the_cut(self):
+        rhs = [100, 101, 99, 100, 102, 98, 100, 103, 97, 300, 104, 30000]
+        self.assertEqual([f["name"] for f in family_outliers(model(rhs))], ["cap[11]", "cap[9]"])
+        self.assertEqual([f["name"] for f in family_outliers(model(rhs), max_flags=1)], ["cap[11]"])
+
     def test_lone_flipped_sense_is_flagged(self):
         md = model([1] * 6)
         row_lo, row_hi = md.row_lo.copy(), md.row_hi.copy()

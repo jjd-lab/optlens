@@ -201,8 +201,18 @@ def family_outliers(md: ModelData, iis_rows: set[str] | None = None, max_flags: 
     # IIS rows first, then the pattern breaks (precise, at most a few of each kind), then the other limits and bounds
     out = out + pattern_breaks(md, iis_rows, infeasible)
     rank = {"coefficient": 1, "objective coefficient": 1, "missing constraint": 1}
-    out.sort(key=lambda f: (not f["in_iis"], -rank.get(f["kind"], 0)))
+    # within a tier the farthest from typical first: the cut at max_flags kept a 35,200 among 1,477s only by file order
+    out.sort(key=lambda f: (not f["in_iis"], -rank.get(f["kind"], 0), -_distance(f.get("value"), f.get("typical"))))
     return out[:max_flags]
+
+
+def _distance(value, typical) -> float:
+    """How far a flagged value is from its group's typical value, as an order of magnitude; 0 when unknown or either
+    is 0 (a zero limit is as often a planned shutdown as a typo)."""
+    if value is None or not isinstance(typical, (int, float)) or not np.isfinite(value) or not np.isfinite(typical):
+        return 0.0
+    a, b = abs(float(value)), abs(float(typical))
+    return abs(float(np.log10(a / b))) if a and b else 0.0
 
 
 def flag_fix(md: ModelData, flag: dict) -> dict | None:

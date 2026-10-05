@@ -9,7 +9,7 @@ claude plugin marketplace add jjd-lab/optlens
 claude plugin install optlens@optlens
 ```
 
-In a session, `/plugin install optlens --marketplace jjd-lab/optlens` does both. To try a checkout without installing,
+In a session, `/plugin marketplace add jjd-lab/optlens` then `/plugin install optlens@optlens` does the same. To try a checkout without installing,
 start Claude Code with `claude --plugin-dir plugin` from the repository root.
 
 The server (`optlens-mcp`) must be on the PATH Claude Code sees. On macOS, keep the venv out of folders that iCloud
@@ -21,8 +21,8 @@ What it adds to Claude Code:
 - the optlens tools, including `add_model` and `compare_models` for several models or scenarios side by side,
   `save_model_context` for one saved description of each model (`.optlens/context/`), and `run_python`, a persistent
   Python process with the engine preloaded as `session` (the model loaded once; several steps per call; its versions
-  separate from the other tools'). Each tool call stops in time for Claude Code's 60 s call timeout (solves 45 s,
-  large IIS searches 40 s; results say when a search stopped short);
+  separate from the other tools'). Each tool call stops within 60 s, the per-call timeout of many MCP clients (solves 45 s,
+  large IIS searches 40 s; results say when a search stopped short; the Claude Code CLI itself waits longer);
 - the `optlens` skill: how to diagnose, explain and compare, the same text as the server's instructions.
 
 **Security.** `run_python` executes the code the agent writes with your permissions (its process starts without your

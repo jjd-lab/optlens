@@ -7,8 +7,8 @@ import unittest
 from pathlib import Path
 
 SRC = Path(__file__).resolve().parents[1] / "src/optlens"
-# pyproject.toml: dependencies, then the extras (anyio comes with mcp)
-ALLOWED = {"optlens", "numpy", "scipy", "highspy", "pyscipopt", "gurobipy", "pulp", "pyomo", "mcp", "anyio"}
+# pyproject.toml: dependencies, then the extras (anyio and jsonschema come with mcp)
+ALLOWED = {"optlens", "numpy", "scipy", "highspy", "pyscipopt", "gurobipy", "pulp", "pyomo", "mcp", "anyio", "jsonschema"}
 
 
 class TestImportRule(unittest.TestCase):

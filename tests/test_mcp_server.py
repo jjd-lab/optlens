@@ -29,6 +29,21 @@ class TestMcpServer(unittest.TestCase):
         [tools] = self.run_client([lambda c: c.list_tools()])
         self.assertEqual({t.name for t in tools.tools}, {"open_model", "save_model_context", "add_model", "compare_models", "run_python"} | {t["name"] for t in TOOLS})
 
+    def test_arguments_off_the_schema_return_the_schema_and_run_nothing(self):
+        # what an agent sent when Claude Code had deferred the tools and it never saw their schemas
+        bad = {"label": "fix", "changes": [{"constraint": "c1", "rhs": 1000}]}
+        option = {"options": [{"label": "fix", "changes": [{"name": "c1", "lower": 1000}]}]}
+        opened, res, tried = self.run_client([lambda c: c.call_tool("open_model", {"path": str(MODEL)}),
+                                              lambda c: c.call_tool("modify_and_resolve", bad),
+                                              lambda c: c.call_tool("try_options", option)])
+        text = res.content[0].text
+        self.assertFalse(opened.is_error)
+        self.assertTrue(res.is_error)
+        self.assertIn("unknown argument 'label'", text)
+        self.assertIn("'action' is a required property", text)
+        self.assertIn('"enum": ["set_rhs"', text)
+        self.assertIn("options.0.changes.0: 'action' is a required property", tried.content[0].text)
+
     def test_the_server_sends_the_method_as_its_instructions(self):
         from optlens import prompts
         from optlens.mcp_server import build_server

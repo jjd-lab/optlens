@@ -372,12 +372,17 @@ def family_first_iis(md: ModelData, backend: Backend, time_limit: float = 60.0,
 
 
 def get_iis(md: ModelData, backend: Backend, time_limit: float = 60.0, time_budget: float = 120.0) -> IIS:
-    """IIS routing: the backend's native IIS; for a MIP without one, SCIP's native MIP IIS (open-source backends
+    """IIS routing: a large LP on an open-source backend first searches near the conflict (``localized_iis``); then
+    the backend's native IIS; for a MIP without one, SCIP's native MIP IIS (open-source backends
     only); the deletion filter on the requested backend only as a last resort, within ``time_budget`` seconds.
     A native IIS whose rows are feasible on their own is rejected: gurobipy 13.0.3 leaves out a one-variable row on
     a binary whose fractional limit rounds it to 0 (tests/test_licensed_solver.py)."""
     from .backends import BACKENDS
 
+    # HiGHS's whole-model IIS ran 305 s without finishing on a 48k-row LP whose conflict is 2 rows (0.4 s localized)
+    if not md.is_mip and not backend.licensed and md.num_rows >= LOCALIZE_MIN_ROWS \
+            and (loc := localized_iis(md, min(time_budget, 120.0))) is not None:
+        return loc
     natives = [backend]
     if md.is_mip and not backend.licensed and backend.name != "scip":
         natives.append(BACKENDS["scip"])

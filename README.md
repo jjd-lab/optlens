@@ -93,7 +93,7 @@ Install as above (it puts `optlens-mcp` on your PATH), then connect once; the ag
 
 | agent | connect |
 |---|---|
-| **Claude Code** | `claude plugin marketplace add jjd-lab/optlens` then `claude plugin install optlens@optlens` (or `/plugin install optlens --marketplace jjd-lab/optlens` in a session) |
+| **Claude Code** | `claude plugin marketplace add jjd-lab/optlens` then `claude plugin install optlens@optlens` (or the same as `/plugin` commands in a session) |
 | **Codex CLI** | `codex mcp add optlens -- optlens-mcp` |
 | **Cursor** | in `.cursor/mcp.json` (or `~/.cursor/mcp.json`): `{"mcpServers": {"optlens": {"command": "optlens-mcp"}}}` |
 | **VS Code (Copilot)** | in `.vscode/mcp.json`: `{"servers": {"optlens": {"type": "stdio", "command": "optlens-mcp"}}}` |

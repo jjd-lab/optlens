@@ -78,6 +78,18 @@ def _backend(solver: str | None, md: od.ModelData | None = None, route: str | No
 
 
 
+CHANGE = {"type": "object", "properties": {
+    "action": {"type": "string", "enum": ["set_rhs", "set_bounds", "set_objective_coef", "drop_constraint",
+                                          "set_coef", "add_constraint"]},
+    "name": {"type": "string"},
+    "column": {"type": "string", "description": "set_coef: the variable whose coefficient changes."},
+    "coefs": {"type": "object", "additionalProperties": {"type": "number"},
+              "description": "add_constraint: {variable: coefficient}."},
+    "lower": {"type": ["number", "null"]},
+    "upper": {"type": ["number", "null"]},
+    "value": {"type": "number"},
+}, "required": ["action", "name"]}  # one change, as modify_and_resolve and try_options take it
+
 TOOLS = [
     {
         "name": "get_model_overview",
@@ -181,17 +193,7 @@ TOOLS = [
         "input_schema": {"type": "object", "properties": {
             "base_version": {"type": "string"},
             "description": {"type": "string"},
-            "changes": {"type": "array", "items": {"type": "object", "properties": {
-                "action": {"type": "string", "enum": ["set_rhs", "set_bounds", "set_objective_coef", "drop_constraint",
-                                                      "set_coef", "add_constraint"]},
-                "name": {"type": "string"},
-                "column": {"type": "string", "description": "set_coef: the variable whose coefficient changes."},
-                "coefs": {"type": "object", "additionalProperties": {"type": "number"},
-                          "description": "add_constraint: {variable: coefficient}."},
-                "lower": {"type": ["number", "null"]},
-                "upper": {"type": ["number", "null"]},
-                "value": {"type": "number"},
-            }, "required": ["action", "name"]}},
+            "changes": {"type": "array", "items": CHANGE},
             "explain_conflict": {"type": "boolean", "description": "Also report the conflict that sets each changed amount (costly)."},
             "solver": {"type": "string", "enum": ["highs", "scip"], "description": "Omit to use the solver chosen for this model (the first result names it); pass one to override or cross-check."},
         }, "required": ["changes"]},
@@ -203,7 +205,7 @@ TOOLS = [
             "base_version": {"type": "string"},
             "options": {"type": "array", "items": {"type": "object", "properties": {
                 "label": {"type": "string"},
-                "changes": {"type": "array", "items": {"type": "object"}},
+                "changes": {"type": "array", "items": CHANGE},
             }, "required": ["label", "changes"]}},
             "solver": {"type": "string", "enum": ["highs", "scip"], "description": "Omit to use the solver chosen for this model (the first result names it); pass one to override or cross-check."},
         }, "required": ["options"]},
@@ -1368,6 +1370,15 @@ def _changes(md: od.ModelData, x0: np.ndarray, md1: od.ModelData, x1: np.ndarray
     change has the same size, so a top-15 list alone is arbitrary and reads as the total."""
     lines = []
     b0, b1 = _binding(md, x0), _binding(md1, x1)
+    if md1.row_names != md.row_names:  # a dropped or added constraint: compare the rows both versions have
+        pos1 = {n: i for i, n in enumerate(md1.row_names)}
+        b1 = np.array([n in pos1 and bool(b1[pos1[n]]) for n in md.row_names], dtype=bool)
+        b0 &= np.array([n in pos1 for n in md.row_names], dtype=bool)
+        names0 = set(md.row_names)
+        for label, names in (("rows only in the first version", [n for n in md.row_names if n not in pos1]),
+                             ("rows only in the second version", [n for n in md1.row_names if n not in names0])):
+            if names:
+                lines.append(f"{label}: {len(names)}; e.g. " + ", ".join(names[:8]))
     for label, mask in (("became binding", ~b0 & b1), ("became slack", b0 & ~b1)):
         names = [md.row_names[i] for i in np.flatnonzero(mask)]
         fams: dict[str, int] = {}

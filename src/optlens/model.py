@@ -19,6 +19,7 @@ INF = highspy.kHighsInf
 CONVEXITY_CHECK_MAX = 3000  # variables in the quadratic term above which convexity is assumed, not checked (a dense
                             # eigenvalue check on that many takes seconds)
 _CONVEX: dict[tuple[int, bool], tuple[weakref.ref, bool]] = {}  # (id(Q), minimize) -> (Q, convex): edits keep Q
+_COL_POSITION: dict[int, tuple[tuple, dict[str, int]]] = {}  # id(col_names) -> (col_names, name -> first position)
 
 
 def _inf(v: float | None) -> float | None:
@@ -88,7 +89,16 @@ class ModelData:
         return self.row_names.index(name)
 
     def col_index(self, name: str) -> int:
-        return self.col_names.index(name)
+        # a dict per names tuple (edits keep it): tuple.index made one 103k-term add_row take 76 s on 73k columns
+        hit = _COL_POSITION.get(id(self.col_names))
+        if hit is None or hit[0] is not self.col_names:
+            if len(_COL_POSITION) >= 16:
+                _COL_POSITION.clear()
+            hit = _COL_POSITION[id(self.col_names)] = (
+                self.col_names, {n: j for j, n in reversed(list(enumerate(self.col_names)))})
+        if (j := hit[1].get(name)) is None:
+            raise ValueError(f"{name!r} is not a column")
+        return j
 
     # ---- edits (each returns a new ModelData) ----
 

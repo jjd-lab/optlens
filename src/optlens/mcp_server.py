@@ -14,12 +14,14 @@ structure; `open_model` shows it in the same words every time, so sessions and p
 from __future__ import annotations
 
 import importlib.util
+import json
 import re
 import threading
 import time
 from pathlib import Path
 
 import anyio
+from jsonschema import Draft202012Validator
 from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, TextContent, Tool
@@ -76,7 +78,7 @@ SAVE_MODEL_CONTEXT = {
 }
 
 
-RUN_PYTHON_LIMIT = 50.0  # per run_python call: inside Claude Code's 60 s per tool call
+RUN_PYTHON_LIMIT = 50.0  # per run_python call: inside the 60 s per tool call of MCP clients such as Claude Desktop
 RUN_PYTHON = {
     "name": "run_python",
     "description": tool_description(RUN_PYTHON_LIMIT, note=(
@@ -84,7 +86,7 @@ RUN_PYTHON = {
         "separate. After a time-out the process restarts and its variables are gone. ")),
     "input_schema": {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"]},
 }
-CALL_SOLVE_LIMIT = 45.0  # per solve; the MCP client's per-call timeout is 60 s (Claude Code's default)
+CALL_SOLVE_LIMIT = 45.0  # per solve; many MCP clients stop a tool call at 60 s (Claude Desktop; not the Claude Code CLI)
 CALL_IIS_BUDGET = 40.0   # a large MIP's IIS search; the result says when it stopped short ("reduced")
 
 
@@ -129,7 +131,7 @@ class State:
         md = od.load(f"{p}{sep}{attr}")
         # the document, else a Python model's own code, is what the context is written from
         doc = Path(document).expanduser().resolve() if document else p if p.suffix == ".py" else None
-        # Claude Code stops waiting for a tool call after 60 s: solves and large searches stop in time to answer
+        # many MCP clients stop waiting for a tool call after 60 s: solves and large searches stop in time to answer
         prefer, only = preferred_solver(solver)
         self.session = Session({"v0": Version(md, None, "original model")}, str(doc) if doc else None,
                                prefer=prefer, only_prefer=only, time_limit=CALL_SOLVE_LIMIT,
@@ -210,20 +212,36 @@ class State:
         return f"{out}\n[{time.time() - t0:.1f} s]" + (f"\n[{note}]" if note else ""), False
 
 
+def argument_problems(schema: dict, args: dict) -> str:
+    """Why args do not fit a tool's schema, with the schema itself, or "" when they fit. A client can defer a
+    server's tools (Claude Code's tool search), so an agent may call a tool whose schema it never saw."""
+    unknown = sorted(set(args) - set(schema.get("properties", {})))
+    found = [f"unknown argument {k!r}" for k in unknown]
+    found += [f"{'.'.join(map(str, e.absolute_path)) or 'arguments'}: {e.message}"
+              for e in Draft202012Validator(schema).iter_errors(args)]
+    if not found:
+        return ""
+    return ("the arguments do not match this tool's input schema; nothing was run:\n"
+            + "\n".join(f"- {f}" for f in found[:5]) + f"\ninput schema: {json.dumps(schema)}")
+
+
 def build_server(state: State | None = None) -> Server:
     state = state or State()
     tools = [Tool(name=t["name"], description=t["description"], input_schema=t["input_schema"])
              for t in [OPEN_MODEL, SAVE_MODEL_CONTEXT, *MULTI_MODEL_TOOLS, *TOOLS, RUN_PYTHON]]
-    names = {t.name for t in tools}
+    schemas = {t.name: t.input_schema for t in tools}
 
     async def list_tools(ctx, params) -> ListToolsResult:
         return ListToolsResult(tools=tools)
 
     async def call_tool(ctx, params: CallToolRequestParams) -> CallToolResult:
-        if params.name not in names:
+        if params.name not in schemas:
             return CallToolResult(content=[TextContent(type="text", text=f"unknown tool {params.name}")], is_error=True)
+        args = dict(params.arguments or {})
+        if problems := argument_problems(schemas[params.name], args):
+            return CallToolResult(content=[TextContent(type="text", text=problems)], is_error=True)
         # solves run in worker processes; keep the event loop free while waiting for them
-        out, err = await anyio.to_thread.run_sync(state.call, params.name, dict(params.arguments or {}))
+        out, err = await anyio.to_thread.run_sync(state.call, params.name, args)
         return CallToolResult(content=[TextContent(type="text", text=out)], is_error=err)
 
     return Server("optlens", instructions=prompts.SERVER_INSTRUCTIONS,
