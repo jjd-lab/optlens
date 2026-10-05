@@ -1,0 +1,15 @@
+{
+  "name": "optlens",
+  "description": "optlens: debug and explain LP/MILP optimization models",
+  "owner": {
+    "name": "Jessica Dong",
+    "email": "hello@optlens.dev"
+  },
+  "plugins": [
+    {
+      "name": "optlens",
+      "source": "./plugin",
+      "description": "Debug and explain LP/MILP models: why infeasible, what fixes it, what-if, sensitivity, scenario comparison. Needs pip install 'optlens[scip,mcp]'."
+    }
+  ]
+}

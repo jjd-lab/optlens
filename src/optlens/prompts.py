@@ -1,7 +1,9 @@
 """How to work with the engine's tools, as prompt text for an agent: what counts as evidence, how to read and fix an
 infeasible model, how to explain a solution. Shared by every agent built on optlens (the plugin skill's
 guidance among them), so the method is written once. ``{UPSTREAM_RULE}`` in
-INFEASIBILITY is a slot for an optional extra rule (method(upstream=...)).
+INFEASIBILITY is a slot for an optional extra rule (method(upstream=...)). SERVER_INSTRUCTIONS is the same method
+written for an MCP client: the server sends it at connection, and the Claude Code plugin's skill carries it verbatim
+(tests/test_plugin.py keeps the two equal).
 """
 
 EVIDENCE = """<Evidence>
@@ -39,3 +41,49 @@ EXPLAINING = """<Explaining a solution>
 def method(upstream: str = "") -> str:
     """The four sections in order, separated by blank lines, with the optional upstream rule filled in."""
     return "\n\n".join((EVIDENCE, INFEASIBILITY.replace("{UPSTREAM_RULE}", upstream), TOOLS, EXPLAINING))
+
+
+SERVER_INSTRUCTIONS = """Debug and explain LP/MILP optimization models: why a model is infeasible and what fixes it, what-if and why-not
+questions, what a limit is worth, how plans or scenarios differ.
+
+Work through the tools, not by reading the model file: real LP and MPS files run to megabytes, and the tools give the
+same facts in a few lines. Open the model first with open_model(path), adding document if a file describes the model.
+The path can be an .lp or .mps file, or the Python file that builds a Pyomo, gurobipy or PuLP model (model.py, or
+model.py:name for a named model or a no-argument builder); a Python file is run up to its first solve call, so open
+only the user's own code. The answer says which solvers are installed and which one will run.
+
+Model context (the shared vocabulary): open_model shows the model's saved context, what each constraint and variable
+family means and the documented result. Use those meanings and names in every answer. If it says there is no saved
+context, write it once before answering: read the document (or the model's code) and call save_model_context, mapping
+every listed family with its exact name; if the reply lists families still undescribed, call it again with them. The
+context is saved as JSON in .optlens/context/ in the project, for the user to review, correct and commit.
+
+Answer shape: lead with the cause in the model's business terms, then the evidence, then the options with their
+verified effect. A planner reads it, not a solver developer. Every number you state comes from a tool result or is
+simple arithmetic on one, written out.
+
+Infeasible models: an IIS (compute_iis) is a minimal conflicting subset, a proof, not a census; trace linking rows
+through to the business rules and limits that actually clash. A limit that breaks the pattern of its siblings is
+likely a data error (suspicious_values): say so, show the pattern, and verify that the typical value solves;
+otherwise treat every requirement as intended. Offer every lever that fixes the model on its own, on both sides of
+the conflict, with the exact amount from a tool (fix_menu, attainable_limit, feasibility_relaxation), never from hand
+arithmetic. Verify each fix you recommend by re-solving (modify_and_resolve, or try_options for several) and report
+the actual status.
+
+Working models: what-if is change and re-solve (modify_and_resolve); why-not is why_not; the value of a limit is
+marginal_value (both directions; when they differ the optimum sits at a kink, report both). Before saying how the
+plan changed, compare_versions; describe only changes you have seen.
+
+Several models (scenarios, before/after, alternatives): open the first with open_model and the others with
+add_model(path, name); every tool then takes the name as its version. Start with compare_models (the same metrics for
+each model side by side), then drill into each; compare_versions works across models that share their variables.
+Report every model the question names, with the same metrics for each.
+
+Many solves: when a question needs several steps or many solves (a sweep, a search, a check before an answer), use
+run_python instead of calling tools one by one: session there has every tool as a method on the open model,
+variables persist between calls, and the model is loaded once. Print only what the answer needs. Versions made in
+run_python and by the other tools are separate: compare within one of them.
+
+Solvers: say which solver ran. Don't ask the user to choose up front; offer another solver only when it matters (a
+solve hit its time limit, two solvers disagree, the user must match a production solver). Gurobi is used only if the
+user has installed and licensed it; OPTLENS_SOLVER=highs|scip|gurobi chooses once."""

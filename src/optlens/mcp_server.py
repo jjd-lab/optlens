@@ -25,6 +25,7 @@ from mcp.server.stdio import stdio_server
 from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, TextContent, Tool
 
 import optlens as od
+from optlens import prompts
 from optlens.context import ContextStore, _inventory_text, context_key, inventory, render, validate
 from optlens.session import MULTI_MODEL_TOOLS, TOOLS, Session, Version, chosen_solver
 from optlens.structure import names_are_meaningful, row_classes
@@ -109,9 +110,9 @@ class State:
         self.model_spec, self.doc = "", None  # what open_model loaded, for the run_python workspace
         self.workspace: CodeWorkspace | None = None  # started on the first run_python call, one per open model
         self.ws_lock = threading.Lock()  # one snippet at a time: the workspace is one process
-        # Subagents (the plugin's model-analyst) share this server and call tools in parallel. Calls that replace or
-        # add models take this lock; the others run in parallel (the session allocates version ids under its own lock,
-        # and solves run in separate processes), so one analyst's long search does not make another's call time out.
+        # A client may call tools in parallel. Calls that replace or add models take this lock; the others run in
+        # parallel (the session allocates version ids under its own lock, and solves run in separate processes), so
+        # one long search does not make another call time out.
         self.lock = threading.Lock()
 
     def _context(self, interp: dict | None) -> str:
@@ -225,7 +226,7 @@ def build_server(state: State | None = None) -> Server:
         out, err = await anyio.to_thread.run_sync(state.call, params.name, dict(params.arguments or {}))
         return CallToolResult(content=[TextContent(type="text", text=out)], is_error=err)
 
-    return Server("optlens", instructions="Debug and explain LP/MILP models: open_model first, then the other tools.",
+    return Server("optlens", instructions=prompts.SERVER_INSTRUCTIONS,
                   on_list_tools=list_tools, on_call_tool=call_tool)
 
 

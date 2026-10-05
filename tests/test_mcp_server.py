@@ -29,6 +29,12 @@ class TestMcpServer(unittest.TestCase):
         [tools] = self.run_client([lambda c: c.list_tools()])
         self.assertEqual({t.name for t in tools.tools}, {"open_model", "save_model_context", "add_model", "compare_models", "run_python"} | {t["name"] for t in TOOLS})
 
+    def test_the_server_sends_the_method_as_its_instructions(self):
+        from optlens import prompts
+        from optlens.mcp_server import build_server
+
+        self.assertEqual(build_server().create_initialization_options().instructions, prompts.SERVER_INSTRUCTIONS)
+
     def test_run_python_keeps_variables_and_has_the_engine(self):
         from optlens.mcp_server import State
 

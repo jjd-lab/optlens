@@ -79,25 +79,37 @@ Gurobi, each model goes to HiGHS or SCIP (a larger MIP's first solve races both)
 On large models (hundreds of thousands of rows) the IIS search starts near the conflict, from HiGHS's infeasibility
 proof, instead of searching the whole model.
 
-## Claude Code plugin and MCP server
+## Use it with your agent
+
+One install, then connect once; the agent gets the 22 tools and the method (open the model first, lead with the cause,
+every number from a solve, re-solve before recommending a fix) with them.
 
 ```bash
-pip install ".[scip,mcp]"
-claude --plugin-dir plugin
+pip install "optlens[scip,mcp] @ git+https://github.com/jjd-lab/optlens"   # puts optlens-mcp on your PATH
 ```
 
-The plugin adds the optlens tools (the `optlens-mcp` server, which must be on the PATH Claude Code sees), a skill on
-how to diagnose, explain and compare, and an optional `optlens:model-analyst` subagent. It keeps one saved model
-context per model (what each constraint and variable family means), written once from the document or code and kept
-in `.optlens/context/` as JSON you can review and commit, so every session describes the model in the same words.
-Details: [plugin/README.md](https://github.com/jjd-lab/optlens/blob/main/plugin/README.md).
+| agent | connect |
+|---|---|
+| **Claude Code** | `claude plugin marketplace add jjd-lab/optlens` then `claude plugin install optlens@optlens` (or `/plugin install optlens --marketplace jjd-lab/optlens` in a session) |
+| **Codex CLI** | `codex mcp add optlens -- optlens-mcp` |
+| **Cursor** | in `.cursor/mcp.json` (or `~/.cursor/mcp.json`): `{"mcpServers": {"optlens": {"command": "optlens-mcp"}}}` |
+| **VS Code (Copilot)** | in `.vscode/mcp.json`: `{"servers": {"optlens": {"type": "stdio", "command": "optlens-mcp"}}}` |
+| **Claude Desktop** | in `claude_desktop_config.json` (Settings > Developer > Edit Config): `{"mcpServers": {"optlens": {"command": "optlens-mcp"}}}` |
+| **Any other MCP client** | run `optlens-mcp` as a stdio server |
 
-**Security.** optlens runs code on your machine, with your permissions, and has no sandbox:
-- `run_python` (the plugin's code tool) executes the code the agent writes. Its process starts with a short list of
-  environment variables (no API keys or tokens), but it can read and write whatever your user can. In Claude Code you
-  approve each call.
-- Opening a `.py` model (`load("model.py")`, `open_model`) runs that file up to its first solve call.
+The command must be on the PATH the agent sees; give the full path to `optlens-mcp` (for example `.venv/bin/optlens-mcp`)
+if it is not. `OPTLENS_SOLVER` (`highs`, `scip`, `gurobi` or `auto`) chooses the solver once.
 
+Then ask: *"Why is `plan.mps` infeasible, and what fixes it?"* The agent opens the model, writes its context once
+(what each constraint and variable family means, as JSON in `.optlens/context/` that you can review and commit), and
+works through the tools. For several steps or many solves it uses `run_python`, a persistent Python process with the
+engine preloaded as `session` and the model loaded once.
+
+The Claude Code plugin is the same server plus a skill that carries the same method ([plugin/README.md](https://github.com/jjd-lab/optlens/blob/main/plugin/README.md)).
+
+**Security.** optlens runs code on your machine, with your permissions, and has no sandbox: `run_python` executes
+the code the agent writes (its process starts without your API keys and tokens, but can read and write whatever your
+user can; in Claude Code you approve each call), and opening a `.py` model runs that file up to its first solve call.
 Open only models and code you trust. To report a vulnerability, see [SECURITY.md](https://github.com/jjd-lab/optlens/blob/main/SECURITY.md).
 
 ## Hotel pack

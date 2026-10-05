@@ -1,6 +1,12 @@
 # Changelog
 
 ## 0.0.1 (unreleased, 2026-09-30)
+- One way to use optlens from an agent: the MCP server now sends the method (open the model first, lead with the
+  cause, every number from a solve, re-solve before recommending, `run_python` for many steps) as its instructions,
+  so Codex, Cursor, Copilot, Claude Desktop and any MCP client get it with the tools. The Claude Code plugin is the
+  same server plus a skill with the same text, and installs by name from this repository's marketplace
+  (`claude plugin marketplace add jjd-lab/optlens`, `claude plugin install optlens@optlens`). The `model-analyst`
+  subagent is gone: delegation cost 2.5x and added no correctness.
 - Solver choice is respected: a session on Gurobi does every step on Gurobi (IIS, LP-relaxation IIS, repairs,
   checks); no step is handed to HiGHS or SCIP. If the user chose Gurobi (`OPTLENS_SOLVER=gurobi` or `open_model`'s
   `solver`) and it cannot run a model (size-limited license, not installed), the tool stops and asks instead of
