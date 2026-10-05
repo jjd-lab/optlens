@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Can a coding agent debug your optimization model? We measured it. | optlens</title>
+<meta name="description" content="A benchmark of 400 broken and working LP/MILP models, up to 837,000 rows: what a dedicated debugging engine adds to a coding agent.">
+<link rel="canonical" href="https://optlens.dev/benchmark/">
+<meta property="og:title" content="Can a coding agent debug your optimization model? We measured it. | optlens">
+<meta property="og:description" content="A benchmark of 400 broken and working LP/MILP models, up to 837,000 rows: what a dedicated debugging engine adds to a coding agent.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://optlens.dev/benchmark/">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="../">opt<span>lens</span></a>
+  <nav><a href="../benchmark/">Benchmark</a><a href="https://github.com/jjd-lab/optlens">GitHub</a><a class="hide-sm" href="mailto:hello@optlens.dev">Contact</a></nav>
+</div></header>
+<article class="post"><h1 id="can-a-coding-agent-debug-your-optimization-model-we-measured-it">Can a coding agent debug your optimization model? We measured it.</h1>
+<p><em>400 broken and working LP/MILP models, up to 837,000 rows: what a debugging engine adds to Claude, and how six
+setups compare.</em></p>
+<h2 id="tldr">TL;DR</h2>
+<ul>
+<li><strong>A coding agent with a solver already gets the answers right:</strong> 95-100 % in every suite, with or without the
+  engine.</li>
+<li><strong>The engine's edge is cost and speed:</strong> the same correct answers at <strong>35-48 % less cost</strong>, and on models too large
+  to read, <strong>35-61 % less time</strong>.</li>
+<li><strong>On linked models, a domain pack wins on correctness too:</strong> where a rate-plan change must flow into the booking
+  plan, optchat with the hotel pack answered <strong>4/4</strong> turns right; the same agent without the pack 2/4, and the coding
+  agent with the engine 1/4.</li>
+<li><strong>Plan comparisons show what an edit forces:</strong> 755 "changed" variables become the 9 the edit actually forces.</li>
+<li>The engine, its MCP server and the Claude Code plugin are open source: <a href="https://github.com/jjd-lab/optlens">github.com/jjd-lab/optlens</a>.
+  optchat, the planner agent, is available on request: hello@optlens.dev.</li>
+</ul>
+<h2 id="the-six-setups">The six setups</h2>
+<p>All run Claude Sonnet 5.5. Every setup starts from <strong>the same first message</strong>: the model's context, the document
+itself on demand, and the question. What differs is only what the agent can call.</p>
+<p><strong>The model context</strong> is each constraint and variable family with its business meaning and the documented result.
+optlens generates it once from the model's document or code (an LLM writes the meanings; optlens checks them against
+the model's actual families), keeps it as JSON you can review and commit, and shows it the same way in every session,
+so every agent and every person describes the model in the same words. In Claude Code the plugin creates it for your
+model the first time you open it.</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>setup</th>
+<th>what the agent can call</th>
+<th>what it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Bare</strong></td>
+<td>Python with HiGHS, SCIP and gurobipy</td>
+<td>a coding agent on its own: the baseline</td>
+</tr>
+<tr>
+<td><strong>Tools</strong></td>
+<td>the optlens tools, one call per action</td>
+<td>the MCP server, in any MCP client</td>
+</tr>
+<tr>
+<td><strong>Code</strong> (<em>"optlens"</em> in the tables)</td>
+<td>optlens preloaded in its Python, called from its own code</td>
+<td>the plugin's <code>run_python</code></td>
+</tr>
+<tr>
+<td><strong>Claude Code + plugin</strong></td>
+<td>tools and <code>run_python</code> with the optlens skill (it also offered an analyst subagent, since removed: 2.5x the cost, no gain)</td>
+<td>what an OR user installs</td>
+</tr>
+<tr>
+<td><strong>optchat</strong></td>
+<td>the code setup, plus a planner prompt, an approval step and a decision log</td>
+<td>the agent for business planners</td>
+</tr>
+<tr>
+<td><strong>optchat + pack</strong></td>
+<td>optchat plus a domain pack: a skill (Markdown) and helpers (Python)</td>
+<td>one pack per business domain</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>What the context is worth.</strong> We gave the bare agent the context in every comparison, so the tables measure the
+engine alone. Without it, the agent lost one case on small models and one on the largest, at 6-8 % more cost:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>bare agent</th>
+<th>with the model context</th>
+<th>without it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>27 small infeasible models: first fix right</td>
+<td>26/27</td>
+<td>25/27</td>
+</tr>
+<tr>
+<td>cost per case</td>
+<td>$0.119</td>
+<td>$0.129</td>
+</tr>
+<tr>
+<td>8 hotel models at 279,000-837,000 rows: first fix right</td>
+<td>8/8</td>
+<td>7/8</td>
+</tr>
+<tr>
+<td>cost per case</td>
+<td>$0.174</td>
+<td>$0.185</td>
+</tr>
+</tbody>
+</table></div>
+<p>Both misses are where meanings matter. On a small anonymous model, with no meanings for the rows, the agent proposed
+deleting a block of them. On a 279,000-row hotel model with one demand forecast typed ten times too high, it searched
+for the wrong value without knowing which rows are demand and ran out of turns; with the context it found it.</p>
+<h2 id="what-we-measured">What we measured</h2>
+<p><strong>400 cases</strong>, each with a solver-verified answer key:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>case type</th>
+<th>cases</th>
+<th>the question</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Infeasible, one injected error (a tightened limit, an added target, a flipped sense, a tightened bound)</td>
+<td>97</td>
+<td>"Why is it infeasible, and how do I fix it?"</td>
+</tr>
+<tr>
+<td>Infeasible, two independent errors or a cascading conflict (from OR-Debug-Bench)</td>
+<td>124</td>
+<td>the same, when one fix is not enough</td>
+</tr>
+<tr>
+<td>Infeasible as published (Netlib, MIPLIB)</td>
+<td>45</td>
+<td>diagnosis only</td>
+</tr>
+<tr>
+<td>Solves to a wrong optimum (sign, coefficient, dropped row, big-M; documented values off by 20-25 %)</td>
+<td>70</td>
+<td>"This plan looks wrong. Why?"</td>
+</tr>
+<tr>
+<td>What-if, sensitivity, goal and why-not questions on working models</td>
+<td>32</td>
+<td>"What if...?"</td>
+</tr>
+<tr>
+<td>Planner conversations (5-6 turns, edits kept between turns, a three-scenario comparison)</td>
+<td>7</td>
+<td>a planner's working session</td>
+</tr>
+<tr>
+<td>Scenario comparisons</td>
+<td>5</td>
+<td>"How do these plans differ?"</td>
+</tr>
+<tr>
+<td>Hotel revenue-management models at 279,000 and 837,000 rows, infeasible or wrong</td>
+<td>16</td>
+<td>the same questions, on models too large to read</td>
+</tr>
+<tr>
+<td>Planner conversations on those hotel models</td>
+<td>2</td>
+<td>a working session on a model too large to read</td>
+</tr>
+<tr>
+<td>Planner conversations on a 14-night hotel model: a messy week, and a rate plan that feeds the booking plan</td>
+<td>2</td>
+<td>a session across two linked models</td>
+</tr>
+</tbody>
+</table></div>
+<p>285 cases are on business models with a model document (Gurobi's modeling examples, synthetic ad-allocation and hotel
+revenue-management models, and OR-Debug-Bench's), 115 on anonymous Netlib and MIPLIB models.</p>
+<p><strong>Scoring.</strong> Every recommended fix is applied to the model and re-solved: does it solve, is the change small and within
+policy (no business rule deleted), does it restore the correct optimum, does it touch the actual error. What-if and
+conversation answers end in a JSON block checked against solver-computed keys.</p>
+<h2 id="results">Results</h2>
+<h3 id="1-correctness-level">1. Correctness: level</h3>
+<p>First fix right, code against bare, on the same cases:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>suite</th>
+<th>optlens</th>
+<th>bare</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Infeasible, 27 mixed models (business and anonymous)</td>
+<td>26/27</td>
+<td>26/27</td>
+</tr>
+<tr>
+<td>Infeasible, 14 business models, 2 runs</td>
+<td>28/28</td>
+<td>28/28</td>
+</tr>
+<tr>
+<td>What-if, sensitivity and goal questions, 2 runs</td>
+<td>64/64</td>
+<td>64/64</td>
+</tr>
+<tr>
+<td>Wrong optimum, reference objective given</td>
+<td>19/19</td>
+<td>19/19</td>
+</tr>
+<tr>
+<td>Wrong optimum, no reference objective</td>
+<td>19/19</td>
+<td>18/19</td>
+</tr>
+<tr>
+<td>Plausible wrong values (documented value at 80 % or 125 %)</td>
+<td>12/12</td>
+<td>12/12</td>
+</tr>
+<tr>
+<td>Largest ad and yield models, wrong optimum, no reference</td>
+<td>5/5</td>
+<td>5/5</td>
+</tr>
+<tr>
+<td>Two errors and cascading conflicts</td>
+<td>40/40</td>
+<td>40/40</td>
+</tr>
+<tr>
+<td>Planner conversations, every turn right</td>
+<td>7/7</td>
+<td>7/7</td>
+</tr>
+<tr>
+<td>Hotel models at 279k and 837k rows</td>
+<td>10/10</td>
+<td>10/10</td>
+</tr>
+<tr>
+<td>Hotel group linked by group-wide rows, 279k and 837k rows</td>
+<td>6/6</td>
+<td>6/6</td>
+</tr>
+<tr>
+<td>Planner conversations on the linked hotel group, every turn right (9 turns)</td>
+<td>2/2</td>
+<td>2/2</td>
+</tr>
+</tbody>
+</table></div>
+<p>The two are never more than one case apart. A frontier coding agent computes its own IIS, relaxes constraints and
+re-solves; on a model too large to read, it reads the file as text and solves a piece of it. If you evaluate LLM tools
+for optimization, compare them with a bare agent and a solver, not with a chat model.</p>
+<h3 id="2-cost-a-third-to-a-half-less-growing-with-model-size">2. Cost: a third to a half less, growing with model size</h3>
+<figure class="chart"><div class="legend"><span><i style="background:var(--series-1)"></i>optlens</span><span><i style="background:var(--series-2)"></i>bare</span></div><svg viewBox="0 0 720 290" role="img" aria-label="Mean cost per case by model size"><line class="grid" x1="16" x2="704" y1="244" y2="244"/><rect class="bar" x="45.2" y="167.1" width="53.8" height="76.9" rx="4" fill="var(--series-1)"><title>optlens, small: $0.056 per case, 5.1 turns, 80/81 right</title></rect><text class="val" x="72.1" y="161.1" text-anchor="middle">$0.056</text><rect class="bar" x="103.0" y="126.5" width="53.8" height="117.5" rx="4" fill="var(--series-2)"><title>bare, small: $0.085 per case, 6.2 turns, 79/81 right</title></rect><text class="val" x="129.9" y="120.5" text-anchor="middle">$0.085</text><text class="note" x="102.0" y="20.0" text-anchor="middle">&#8722;35%</text><text class="cat" x="102.0" y="266.0" text-anchor="middle">small</text><rect class="bar" x="217.2" y="152.9" width="53.8" height="91.1" rx="4" fill="var(--series-1)"><title>optlens, mid: $0.066 per case, 5.7 turns, 56/56 right</title></rect><text class="val" x="244.1" y="146.9" text-anchor="middle">$0.066</text><rect class="bar" x="275.0" y="91.2" width="53.8" height="152.8" rx="4" fill="var(--series-2)"><title>bare, mid: $0.111 per case, 8.3 turns, 56/56 right</title></rect><text class="val" x="301.9" y="85.2" text-anchor="middle">$0.111</text><text class="note" x="274.0" y="20.0" text-anchor="middle">&#8722;40%</text><text class="cat" x="274.0" y="266.0" text-anchor="middle">mid</text><rect class="bar" x="389.2" y="175.0" width="53.8" height="69.0" rx="4" fill="var(--series-1)"><title>optlens, large: $0.050 per case, 3.7 turns, 13/13 right</title></rect><text class="val" x="416.1" y="169.0" text-anchor="middle">$0.050</text><rect class="bar" x="447.0" y="124.1" width="53.8" height="119.9" rx="4" fill="var(--series-2)"><title>bare, large: $0.087 per case, 6.7 turns, 13/13 right</title></rect><text class="val" x="473.9" y="118.1" text-anchor="middle">$0.087</text><text class="note" x="446.0" y="20.0" text-anchor="middle">&#8722;42%</text><text class="cat" x="446.0" y="266.0" text-anchor="middle">large</text><rect class="bar" x="561.2" y="149.5" width="53.8" height="94.5" rx="4" fill="var(--series-1)"><title>optlens, too large to read: $0.069 per case, 6.1 turns, 16/16 right</title></rect><text class="val" x="588.1" y="143.5" text-anchor="middle">$0.069</text><rect class="bar" x="619.0" y="61.4" width="53.8" height="182.6" rx="4" fill="var(--series-2)"><title>bare, too large to read: $0.133 per case, 10.0 turns, 16/16 right</title></rect><text class="val" x="645.9" y="55.4" text-anchor="middle">$0.133</text><text class="note" x="618.0" y="20.0" text-anchor="middle">&#8722;48%</text><text class="cat" x="618.0" y="266.0" text-anchor="middle">too large to read</text></svg><figcaption>Mean cost per case and run, same cases; the percentage is optlens's saving. Hover a bar for turns and correctness.</figcaption></figure>
+
+<div class="table"><table>
+<thead>
+<tr>
+<th>model size</th>
+<th>right (optlens / bare)</th>
+<th>optlens: cost, turns</th>
+<th>bare: cost, turns</th>
+<th>optlens saves</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>small (rows × columns &lt; 10⁴)</td>
+<td>80/81 / 79/81</td>
+<td>$0.056, 5.1</td>
+<td>$0.085, 6.2</td>
+<td>35 %</td>
+</tr>
+<tr>
+<td>mid (&lt; 10⁶)</td>
+<td>56/56 / 56/56</td>
+<td>$0.066, 5.7</td>
+<td>$0.111, 8.3</td>
+<td>40 %</td>
+</tr>
+<tr>
+<td>large (≥ 10⁶)</td>
+<td>13/13 / 13/13</td>
+<td>$0.050, 3.7</td>
+<td>$0.087, 6.7</td>
+<td>42 %</td>
+</tr>
+<tr>
+<td>too large to read (50,000+ rows)</td>
+<td>16/16 / 16/16</td>
+<td>$0.069, 6.1</td>
+<td>$0.133, 10.0</td>
+<td>48 %</td>
+</tr>
+</tbody>
+</table></div>
+<p>Mean per case and run, on the same cases. The bare agent gets there, but it rebuilds the diagnostic machinery in a
+scratch script every session.</p>
+<h3 id="3-time-on-models-too-large-to-read">3. Time on models too large to read</h3>
+<p>Hotel revenue-management models at 4 hotels × 365 nights (279,000 rows, a 176 MB file) and 12 hotels × 365 nights
+(837,000 rows, 530 MB), with injected errors; a second set links the hotels with group-wide rows, so the model no
+longer splits into one hotel at a time.</p>
+<figure class="chart"><div class="legend"><span><i style="background:var(--series-1)"></i>optlens</span><span><i style="background:var(--series-2)"></i>bare</span></div><svg viewBox="0 0 720 232" role="img" aria-label="Tool time on models too large to read"><text class="cat" x="0" y="38">hotel models (10)</text><rect class="bar" x="250" y="16" width="162.0" height="24" rx="4" fill="var(--series-1)"><title>optlens, hotel models (10): 26 min of tool time</title></rect><text class="val" x="420.0" y="33">26 min</text><rect class="bar" x="250" y="44" width="250.2" height="24" rx="4" fill="var(--series-2)"><title>bare, hotel models (10): 40 min of tool time</title></rect><text class="val" x="508.2" y="61">40 min</text><text class="note" x="716" y="38" text-anchor="end">&#8722;35%</text><text class="cat" x="0" y="112">linked hotel group (6)</text><rect class="bar" x="250" y="90" width="156.8" height="24" rx="4" fill="var(--series-1)"><title>optlens, linked hotel group (6): 25 min of tool time</title></rect><text class="val" x="414.8" y="107">25 min</text><rect class="bar" x="250" y="118" width="400.0" height="24" rx="4" fill="var(--series-2)"><title>bare, linked hotel group (6): 64 min of tool time</title></rect><text class="val" x="658.0" y="135">64 min</text><text class="note" x="716" y="112" text-anchor="end">&#8722;61%</text><text class="cat" x="0" y="186">conversations, linked group (2)</text><rect class="bar" x="250" y="164" width="126.4" height="24" rx="4" fill="var(--series-1)"><title>optlens, conversations, linked group (2): 20 min of tool time</title></rect><text class="val" x="384.4" y="181">20 min</text><rect class="bar" x="250" y="192" width="285.9" height="24" rx="4" fill="var(--series-2)"><title>bare, conversations, linked group (2): 46 min of tool time</title></rect><text class="val" x="543.9" y="209">46 min</text><text class="note" x="716" y="186" text-anchor="end">&#8722;56%</text></svg><figcaption>Total tool time per row (279,000 and 837,000 rows); the percentage is optlens's saving.</figcaption></figure>
+
+<div class="table"><table>
+<thead>
+<tr>
+<th></th>
+<th>optlens: tool time, cost</th>
+<th>bare: tool time, cost</th>
+<th>right (optlens / bare)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>hotel models (10 cases)</td>
+<td>26 min, $0.73</td>
+<td>40 min, $1.40</td>
+<td>10/10 / 10/10</td>
+</tr>
+<tr>
+<td>linked hotel group (6 cases)</td>
+<td>25 min, $0.53</td>
+<td>64 min, $0.86</td>
+<td>6/6 / 6/6</td>
+</tr>
+<tr>
+<td>planner conversations on the linked group (2, 9 turns)</td>
+<td>20 min, $0.40</td>
+<td>46 min, $0.60</td>
+<td>9/9 / 9/9</td>
+</tr>
+</tbody>
+</table></div>
+<p>optlens finds the conflict from the solver's own proof of infeasibility, so it never needs the whole model: 13 to 37
+conflicting rows out of 279,000-837,000, found in 4 to 58 seconds.</p>
+<h3 id="4-what-you-can-ask">4. What you can ask</h3>
+<p>Every capability is a tool in Python, the MCP server and the plugin:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>you want to know</th>
+<th>optlens tools</th>
+<th>tested in</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>what the model is and means</td>
+<td><code>get_model_overview</code>, <code>query_constraints</code>, <code>query_variables</code>, <code>read_model_document</code>, <code>save_model_context</code></td>
+<td>every suite (the context)</td>
+</tr>
+<tr>
+<td>why it is infeasible</td>
+<td><code>compute_iis</code>, <code>feasibility_relaxation</code>, <code>drop_test</code></td>
+<td>the infeasible suites</td>
+</tr>
+<tr>
+<td>what fixes it</td>
+<td><code>fix_menu</code>, <code>suspicious_values</code> (with each flag's undo solved)</td>
+<td>the infeasible and wrong-optimum suites</td>
+</tr>
+<tr>
+<td>what happens if...</td>
+<td><code>modify_and_resolve</code>, <code>try_options</code>, <code>version_history</code></td>
+<td>what-if questions, planner conversations</td>
+</tr>
+<tr>
+<td>how two plans differ</td>
+<td><code>compare_versions</code> (against the closest optimal plan)</td>
+<td>what-if questions, planner conversations</td>
+</tr>
+<tr>
+<td>what a limit is worth, how far it can go</td>
+<td><code>marginal_value</code>, <code>sensitivity_report</code>, <code>attainable_limit</code></td>
+<td>what-if and goal questions</td>
+</tr>
+<tr>
+<td>why the plan doesn't do X</td>
+<td><code>why_not</code></td>
+<td>why-not questions</td>
+</tr>
+<tr>
+<td>how several models or scenarios compare</td>
+<td><code>add_model</code>, <code>compare_models</code></td>
+<td>scenario comparisons, the three-scenario conversation</td>
+</tr>
+<tr>
+<td>anything else, in code</td>
+<td><code>run_python</code> (the engine preloaded as <code>session</code>)</td>
+<td>the code setup, every suite</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="5-tools-code-or-plugin">5. Tools, code or plugin</h3>
+<div class="table"><table>
+<thead>
+<tr>
+<th>14 business infeasible models and 32 what-if questions</th>
+<th>right</th>
+<th>cost per case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>bare</td>
+<td>46/46</td>
+<td>$0.061</td>
+</tr>
+<tr>
+<td>tools (one call per action)</td>
+<td>45/46</td>
+<td>$0.052</td>
+</tr>
+<tr>
+<td>code (optlens in the agent's Python)</td>
+<td>46/46</td>
+<td>$0.043</td>
+</tr>
+</tbody>
+</table></div>
+<p>Calling the engine from code is the cheapest setup: several steps per call, one model load. <strong>Claude Code with the
+plugin</strong> answered 5/5 questions comparing three ad-allocation scenarios (three 9,680-variable MIPs opened side by side:
+status and objectives, a what-if on one scenario, the smallest feasible budget of another), at $0.14 a question (a
+small test).</p>
+<h3 id="6-optchat-and-domain-packs">6. optchat and domain packs</h3>
+<p>Turns answered right; mean cost per conversation:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>conversation</th>
+<th>code</th>
+<th>optchat</th>
+<th>optchat + hotel pack</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Everyday planner conversations (7)</td>
+<td>40/40, $0.22</td>
+<td>40/40, $0.28</td>
+<td>no pack for these models</td>
+</tr>
+<tr>
+<td>Linked hotel group, 279k-837k rows (2)</td>
+<td>9/9, $0.20</td>
+<td>9/9, $0.38</td>
+<td>9/9, $0.41</td>
+</tr>
+<tr>
+<td>Messy week on the hotel model (1)</td>
+<td>5/5, $0.23</td>
+<td>5/5, $0.41</td>
+<td>15/15 over 3 runs, $0.36</td>
+</tr>
+<tr>
+<td><strong>Two-stage rate plan feeding the booking plan (1)</strong></td>
+<td><strong>1/4, $0.39</strong></td>
+<td><strong>2/4, $0.68</strong></td>
+<td><strong>4/4, $0.19</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p>On a single model, optchat answers as correctly as the code setup at a modest extra cost: its planner prompt asks
+for checks, plain language and the planner's approval before a change becomes the plan. Where models are linked, the
+pack decides: when the planner changes the rate plan, the pack's helper carries the new prices and demand into the
+booking plan exactly, in 1.5 seconds of tool time. Without it, both agents rebuilt or estimated the link (110 and 277
+seconds) and got turns wrong.</p>
+<p><strong>A new business domain needs no code change</strong> to the engine or the agents:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>you add</th>
+<th>format</th>
+<th>what it gives</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>the model and its document</td>
+<td>LP, MPS or Python; Markdown</td>
+<td>every question above (all the Gurobi example models ran this way)</td>
+</tr>
+<tr>
+<td>a pack's skill</td>
+<td>Markdown</td>
+<td>the domain's levers and words in every answer</td>
+</tr>
+<tr>
+<td>a pack's helpers (optional)</td>
+<td>Python</td>
+<td>exact steps across linked models, data checks against the document</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="7-plan-comparison-on-large-mips">7. Plan comparison on large MIPs</h3>
+<p>A MIP with many equally good plans re-solves to any of them, so a plain diff mostly shows the solver's choice among
+ties: over 99 % of the reported changes on the ad min-cost what-ifs. optlens compares against the optimal plan
+<strong>closest</strong> to the old one (one extra solve, ≤ 1.5 s here):</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>ad min-cost what-if</th>
+<th>variables reported as changed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>plain diff</td>
+<td>755</td>
+</tr>
+<tr>
+<td>optlens (closest optimal plan)</td>
+<td>9</td>
+</tr>
+</tbody>
+</table></div>
+<p>In a planner conversation, "campaign 3 now needs 48 impressions" is answered with the four slot changes the edit
+forces, adding up to the +32.4 cost, instead of a 779-variable reshuffle.</p>
+<h3 id="8-checked-fixes-for-suspicious-values">8. Checked fixes for suspicious values</h3>
+<p>optlens flags inputs that break their own pattern (a limit unlike its siblings', a flipped sense, an out-of-scale
+coefficient, a missing row) and solves each flag's undo, alone and together. On 221 cases with a known error, it hands
+over a verified correct fix for 47, and a wrong one for 2.</p>
+<h2 id="what-the-engine-adds-when-the-agent-is-already-right">What the engine adds when the agent is already right</h2>
+<div class="table"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Cost and speed</strong></td>
+<td>35-48 % less spend, fewer turns, 35-61 % less time on models too large to read</td>
+</tr>
+<tr>
+<td><strong>The same facts every time</strong></td>
+<td>conflicts, flags, fixes and plan diffs come from tested code, not a script written this session</td>
+</tr>
+<tr>
+<td><strong>Every number checked</strong></td>
+<td>recommended fixes are re-solved before they are offered</td>
+</tr>
+<tr>
+<td><strong>Any solver, local</strong></td>
+<td>HiGHS and SCIP out of the box, your own Gurobi licence; a hard time limit on every solve; LP, MPS, Pyomo, gurobipy and PuLP</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="limits">Limits</h2>
+<ul>
+<li>One model family (Claude Sonnet 5.5); one or two runs per setting (the messy week with the pack: three).</li>
+<li>Every correctness suite is saturated: these cases cannot show further gains in correctness.</li>
+<li>The largest models are one synthetic family (hotel revenue management): 16 cases and 2 conversations.</li>
+<li>The plugin row is 5 questions; the optchat rows are one run each, the two-stage rate plan one conversation.</li>
+<li>Gurobi was tested only with its size-limited licence.</li>
+</ul>
+<h2 id="try-it">Try it</h2>
+<pre><code>pip install &quot;optlens[scip,mcp] @ git+https://github.com/jjd-lab/optlens&quot;
+</code></pre>
+<p>Then connect it once: in Claude Code, <code>claude plugin install optlens --marketplace jjd-lab/optlens</code>; in Codex,
+<code>codex mcp add optlens -- optlens-mcp</code>; in Cursor, VS Code or Claude Desktop, one line in the MCP config (the README
+has each). The agent gets the tools and the method with them. optchat and domain packs for your models:
+hello@optlens.dev.</p>
+<p>The benchmark itself stays private, so that it keeps measuring new versions of the engine fairly; the tables above
+are generated from its recorded runs. Issues with your own models are the most useful feedback we can get: open a
+GitHub issue or write to hello@optlens.dev.</p>
+<h2 id="credits">Credits</h2>
+<p>Business example models from Gurobi's modeling-examples (Apache-2.0). Two-error and cascading cases from
+OR-Debug-Bench / ORLoopBench (Ao, Simchi-Levi and Wang, arXiv 2601.21008; data CC BY 4.0), with row names changed
+and cases filtered. Netlib LP (infeasible set collected by J. Chinneck) and MIPLIB 2017 instances.</p></article>
+<footer class="bottom"><div class="wrap">
+  <span>optlens is open source (Apache-2.0)</span><a href="https://github.com/jjd-lab/optlens">GitHub</a><a href="mailto:hello@optlens.dev">hello@optlens.dev</a>
+</div></footer>
+</body>
+</html>

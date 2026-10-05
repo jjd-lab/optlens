@@ -1,0 +1,10 @@
+// The site optlens.dev: Cloudflare serves docs/ as static assets of the Worker "optlens" and redeploys on every push
+// to main (Workers Builds, deploy command `npx wrangler deploy`). The pages are generated: do not edit them by hand.
+{
+  "name": "optlens",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./docs",
+    "html_handling": "auto-trailing-slash"
+  }
+}

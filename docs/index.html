@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>optlens: debug and explain LP/MILP models</title>
+<meta name="description" content="Why a model is infeasible, the smallest fix, and what a change costs, from Python, MCP or Claude Code. HiGHS, SCIP or your own Gurobi. Open source.">
+<link rel="canonical" href="https://optlens.dev/">
+<meta property="og:title" content="optlens: debug and explain LP/MILP models">
+<meta property="og:description" content="Why a model is infeasible, the smallest fix, and what a change costs, from Python, MCP or Claude Code. HiGHS, SCIP or your own Gurobi. Open source.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://optlens.dev/">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="">opt<span>lens</span></a>
+  <nav><a href="benchmark/">Benchmark</a><a href="https://github.com/jjd-lab/optlens">GitHub</a><a class="hide-sm" href="mailto:hello@optlens.dev">Contact</a></nav>
+</div></header>
+
+<div class="hero"><div class="wrap">
+  <h1>Debug and explain your optimization models.</h1>
+  <p class="lead">optlens finds why an LP or MILP model is infeasible, the smallest change that fixes it, and what a
+  change costs, then says it in words a planner understands. Use it from Python, any MCP client, or Claude Code, on
+  HiGHS, SCIP or your own Gurobi.</p>
+  <div class="buttons"><a class="btn primary" href="https://github.com/jjd-lab/optlens">Get started on GitHub</a>
+  <a class="btn ghost" href="benchmark/">Read the benchmark</a></div>
+  <pre class="install"><code>pip install "optlens[scip,mcp] @ git+https://github.com/jjd-lab/optlens"
+claude plugin install optlens --marketplace jjd-lab/optlens   # Claude Code
+codex mcp add optlens -- optlens-mcp                           # Codex (others: one line)</code></pre>
+</div></div>
+
+<section class="soft"><div class="wrap">
+  <h2 class="sec">Measured on 400 models</h2>
+  <p class="sub">400 broken and working models, up to 837,000 rows, each with a solver-verified answer key. Claude
+  with optlens against the same agent with only a solver, both given the same model context.</p>
+  <div class="stats">
+    <div class="stat"><div class="n">95-100 %</div><div class="l">correct in every suite, with or without the engine:
+    the answers were never the gap</div></div>
+    <div class="stat"><div class="n">35-48 %</div><div class="l">lower cost for the same correct answers, growing with
+    model size</div></div>
+    <div class="stat"><div class="n">35-61 %</div><div class="l">less time on models too large to read (279,000 to
+    837,000 rows)</div></div>
+    <div class="stat"><div class="n">755 &rarr; 9</div><div class="l">plan changes reported after an edit: the forced
+    ones, not the solver's reshuffle</div></div>
+  </div>
+  <div style="margin-top:34px"><figure class="chart"><div class="legend"><span><i style="background:var(--series-1)"></i>optlens</span><span><i style="background:var(--series-2)"></i>bare</span></div><svg viewBox="0 0 720 290" role="img" aria-label="Mean cost per case by model size"><line class="grid" x1="16" x2="704" y1="244" y2="244"/><rect class="bar" x="45.2" y="167.1" width="53.8" height="76.9" rx="4" fill="var(--series-1)"><title>optlens, small: $0.056 per case, 5.1 turns, 80/81 right</title></rect><text class="val" x="72.1" y="161.1" text-anchor="middle">$0.056</text><rect class="bar" x="103.0" y="126.5" width="53.8" height="117.5" rx="4" fill="var(--series-2)"><title>bare, small: $0.085 per case, 6.2 turns, 79/81 right</title></rect><text class="val" x="129.9" y="120.5" text-anchor="middle">$0.085</text><text class="note" x="102.0" y="20.0" text-anchor="middle">&#8722;35%</text><text class="cat" x="102.0" y="266.0" text-anchor="middle">small</text><rect class="bar" x="217.2" y="152.9" width="53.8" height="91.1" rx="4" fill="var(--series-1)"><title>optlens, mid: $0.066 per case, 5.7 turns, 56/56 right</title></rect><text class="val" x="244.1" y="146.9" text-anchor="middle">$0.066</text><rect class="bar" x="275.0" y="91.2" width="53.8" height="152.8" rx="4" fill="var(--series-2)"><title>bare, mid: $0.111 per case, 8.3 turns, 56/56 right</title></rect><text class="val" x="301.9" y="85.2" text-anchor="middle">$0.111</text><text class="note" x="274.0" y="20.0" text-anchor="middle">&#8722;40%</text><text class="cat" x="274.0" y="266.0" text-anchor="middle">mid</text><rect class="bar" x="389.2" y="175.0" width="53.8" height="69.0" rx="4" fill="var(--series-1)"><title>optlens, large: $0.050 per case, 3.7 turns, 13/13 right</title></rect><text class="val" x="416.1" y="169.0" text-anchor="middle">$0.050</text><rect class="bar" x="447.0" y="124.1" width="53.8" height="119.9" rx="4" fill="var(--series-2)"><title>bare, large: $0.087 per case, 6.7 turns, 13/13 right</title></rect><text class="val" x="473.9" y="118.1" text-anchor="middle">$0.087</text><text class="note" x="446.0" y="20.0" text-anchor="middle">&#8722;42%</text><text class="cat" x="446.0" y="266.0" text-anchor="middle">large</text><rect class="bar" x="561.2" y="149.5" width="53.8" height="94.5" rx="4" fill="var(--series-1)"><title>optlens, too large to read: $0.069 per case, 6.1 turns, 16/16 right</title></rect><text class="val" x="588.1" y="143.5" text-anchor="middle">$0.069</text><rect class="bar" x="619.0" y="61.4" width="53.8" height="182.6" rx="4" fill="var(--series-2)"><title>bare, too large to read: $0.133 per case, 10.0 turns, 16/16 right</title></rect><text class="val" x="645.9" y="55.4" text-anchor="middle">$0.133</text><text class="note" x="618.0" y="20.0" text-anchor="middle">&#8722;48%</text><text class="cat" x="618.0" y="266.0" text-anchor="middle">too large to read</text></svg><figcaption>Mean cost per case and run, same cases; the percentage is optlens's saving. Hover a bar for turns and correctness.</figcaption></figure></div>
+  <p style="margin:18px 0 0"><a href="benchmark/">How we measured it, and how six setups compare &rarr;</a></p>
+</div></section>
+
+<section><div class="wrap">
+  <h2 class="sec">What it does</h2>
+  <p class="sub">Every answer comes from a solve, and every recommended fix is re-solved before it is offered.</p>
+  <div class="cards">
+    <div class="card"><h3>Why is it infeasible?</h3><p>The conflicting constraints (an IIS), grouped by family, even
+    on models with hundreds of thousands of rows.</p></div>
+    <div class="card"><h3>What fixes it?</h3><p>The smallest change per family that restores feasibility, with the
+    best plan it allows, and inputs that break their own pattern, each with its undo already solved.</p></div>
+    <div class="card"><h3>What if&hellip;?</h3><p>Edits as versions, why-not questions, marginal values and
+    sensitivity, without touching your model code.</p></div>
+    <div class="card"><h3>How do these plans differ?</h3><p>Changes against the closest optimal plan, so an edit shows
+    what it forces, not the solver's choice among ties.</p></div>
+    <div class="card"><h3>Which scenario is better?</h3><p>Open several models or scenarios side by side and compare
+    status, objective and every family's metrics, or ask a what-if on one of them.</p></div>
+    <div class="card"><h3>What does this model mean?</h3><p>A model context generated once from your document or code:
+    each family's business meaning, checked against the model, saved as JSON your team reviews and reuses.</p></div>
+  </div>
+  <p style="margin:22px 0 0"><a href="benchmark/#4-what-you-can-ask">Everything you can ask, tool by tool &rarr;</a></p>
+</div></section>
+
+<section class="soft demo"><div class="wrap">
+  <h2 class="sec">For the planners who own the plan</h2>
+  <p class="sub"><strong>optchat</strong>, a chat agent built on optlens, answers business planners in plain language
+  and asks before applying a change. Here a planner finds a data-entry error, approves the fix and asks what the
+  rules cost (waiting time cut to two seconds). Available on request: <a href="mailto:hello@optlens.dev">hello@optlens.dev</a>.</p>
+  <div class="stats" style="margin-bottom:30px">
+    <div class="stat"><div class="n">4/4</div><div class="l">turns right with the hotel pack on a rate plan that feeds
+    the booking plan; 2/4 without the pack, 1/4 for the coding agent with the engine</div></div>
+    <div class="stat"><div class="n">Markdown</div><div class="l">is all a new business domain needs: the model's
+    document and a pack's skill; helpers only for linked models</div></div>
+  </div>
+  <img src="planner-agent-demo.svg" alt="A planner asks why the week's plan is infeasible, approves the fix, and asks
+  which rule costs the most revenue" loading="lazy">
+</div></section>
+
+<section><div class="wrap row2">
+  <div><h3>Solvers</h3><div class="pills"><span class="pill">HiGHS</span><span class="pill">SCIP</span>
+  <span class="pill">Gurobi (your license)</span></div>
+  <p style="color:var(--muted);font-size:15.5px">A hard time limit on every solve. A Gurobi session does every step on
+  Gurobi; every IIS is checked.</p></div>
+  <div><h3>Models</h3><div class="pills"><span class="pill">LP</span><span class="pill">MPS</span>
+  <span class="pill">Pyomo</span><span class="pill">gurobipy</span><span class="pill">PuLP</span></div>
+  <p style="color:var(--muted);font-size:15.5px">Load the file, the model object, or the script that builds it.</p></div>
+  <div><h3>Where</h3><div class="pills"><span class="pill">Claude Code</span><span class="pill">Codex</span>
+  <span class="pill">Cursor</span><span class="pill">Copilot</span><span class="pill">Claude Desktop</span>
+  <span class="pill">Python</span></div>
+  <p style="color:var(--muted);font-size:15.5px">One MCP server, connected with one line; the agent gets the tools and
+  the method together. Local, on your machine.</p></div>
+</div></section>
+
+<footer class="bottom"><div class="wrap">
+  <span>optlens is open source (Apache-2.0)</span><a href="https://github.com/jjd-lab/optlens">GitHub</a><a href="mailto:hello@optlens.dev">hello@optlens.dev</a>
+</div></footer>
+</body>
+</html>
