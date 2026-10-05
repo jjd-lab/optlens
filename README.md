@@ -9,12 +9,14 @@ optlens works on a model that is already built. It does not write models.
 
 ## Install
 
-Python 3.11 or later. Not on PyPI yet; install from a clone:
+Python 3.11 or later. Not on PyPI yet; install from GitHub:
 
 ```bash
-git clone https://github.com/jjd-lab/optlens && cd optlens
-pip install ".[scip,mcp]"     # core: numpy, scipy, HiGHS
+pip install "optlens[scip,mcp] @ git+https://github.com/jjd-lab/optlens"   # core: numpy, scipy, HiGHS
 ```
+
+To run the quickstart below or the tests, clone the repository and install it from the clone
+(`git clone https://github.com/jjd-lab/optlens && cd optlens && pip install ".[scip,mcp]"`).
 
 | extra | adds |
 |---|---|
@@ -86,12 +88,8 @@ proof, instead of searching the whole model.
 
 ## Use it with your agent
 
-One install, then connect once; the agent gets the 22 tools and the method (open the model first, lead with the cause,
-every number from a solve, re-solve before recommending a fix) with them.
-
-```bash
-pip install "optlens[scip,mcp] @ git+https://github.com/jjd-lab/optlens"   # puts optlens-mcp on your PATH
-```
+Install as above (it puts `optlens-mcp` on your PATH), then connect once; the agent gets the 22 tools and the method
+(open the model first, lead with the cause, every number from a solve, re-solve before recommending a fix) with them.
 
 | agent | connect |
 |---|---|
@@ -132,9 +130,8 @@ cd packs/hotel && python -m unittest discover -s tests -t .           # the hote
 
 ## Contact
 
-Questions, feedback on your own models, or access to **optchat**, the chat agent built on optlens for the people who
-act on a model's plan (it keeps every change as a version, compares scenarios, carries a change across linked models,
-and applies nothing until the planner approves; available on request): **hello@optlens.dev**. Bugs and feature requests: GitHub issues.
+Questions, feedback on your own models, or access to **optchat**, the chat agent built on optlens for business users
+(available on request): **hello@optlens.dev**. Bugs and feature requests: GitHub issues.
 
 A planner's session with optchat on the hotel pack's model (a 14-night plan, after a data load typed one night's group
 target as 1,200 instead of 120). Each answer ends with the engine calls, time and cost it took; waiting time is cut

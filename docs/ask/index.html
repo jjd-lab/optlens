@@ -21,8 +21,7 @@
 </div></header>
 <article class="post"><h1 id="what-you-can-ask">What you can ask</h1>
 <p>Every question below is a tool: a <code>Session</code> method in Python, a tool of the MCP server (<code>optlens-mcp</code>, 22 tools) and
-the same in the Claude Code plugin. Ask in your own words; the agent picks the tools. Every answer comes from a solve,
-and every recommended fix is re-solved before it is offered.</p>
+the same in the Claude Code plugin. Ask in your own words; the agent picks the tools.</p>
 <h2 id="questions-and-tools">Questions and tools</h2>
 <div class="table"><table>
 <thead>
@@ -116,17 +115,15 @@ and every recommended fix is re-solved before it is offered.</p>
 <tr>
 <td>Gurobi</td>
 <td>LP, MILP, QP and MIQP, convex or not</td>
-<td>your own license; IIS for LPs and MIPs; a Gurobi session does every step on Gurobi</td>
+<td>your own license, tested on the size-limited one only (2,000 constraints and 2,000 variables, 200 variables with a quadratic objective); IIS for LPs and MIPs</td>
 </tr>
 </tbody>
 </table></div>
-<p>Every solve has a hard time limit, and every IIS is checked: one whose constraints are feasible on their own is
-rejected and rebuilt.</p>
+<p>How solver choice works (a Gurobi session stays on Gurobi, hard time limits, checked IIS): see
+<a href="https://github.com/jjd-lab/optlens#solvers">Solvers in the README</a>.</p>
 <h2 id="limits">Limits</h2>
 <ul>
 <li>optlens works on a model that is already built; it does not write models.</li>
-<li>Gurobi is tested on its size-limited license only (2,000 constraints and 2,000 variables, 200 variables with a
-  quadratic objective).</li>
 <li>Sensitivity ranges hold for the solution's basis; at a degenerate solution the shadow price can differ on each side
   of a limit, and <code>marginal_value</code> re-solves to check a change.</li>
 </ul>

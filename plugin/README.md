@@ -1,8 +1,7 @@
 # optlens Claude Code plugin
 
 The optlens MCP server (`optlens-mcp`, 22 tools) plus the `optlens` skill, which carries the same method the server
-sends every MCP client: open the model first, lead with the cause in business terms, every number from a solve,
-re-solve before recommending a fix, `run_python` for several steps at once.
+sends every MCP client (see "Use it with your agent" in the [README](../README.md)).
 
 ```bash
 pip install "optlens[scip,mcp] @ git+https://github.com/jjd-lab/optlens"   # add [gurobi] if you have a license
@@ -16,8 +15,7 @@ start Claude Code with `claude --plugin-dir plugin` from the repository root.
 The server (`optlens-mcp`) must be on the PATH Claude Code sees. On macOS, keep the venv out of folders that iCloud
 syncs (`~/Documents`, `~/Desktop`): iCloud flags files hidden, and Python 3.13 skips hidden `.pth` files, so an
 editable install's `optlens-mcp` cannot import the package (`chflags nohidden` on the `.pth` files clears it).
-`OPTLENS_SOLVER` (highs, scip, gurobi, or auto, the default) picks the solver; auto uses Gurobi when gurobipy is
-installed and falls back to HiGHS or SCIP per model when Gurobi cannot run it.
+`OPTLENS_SOLVER` picks the solver ([Solvers](../README.md#solvers)).
 
 What it adds to Claude Code:
 - the optlens tools, including `add_model` and `compare_models` for several models or scenarios side by side,

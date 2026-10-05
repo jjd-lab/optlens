@@ -191,6 +191,7 @@ revenue-management models, and OR-Debug-Bench's), 115 on anonymous Netlib and MI
 <p><strong>Scoring.</strong> Every recommended fix is applied to the model and re-solved: does it solve, is the change small and within
 policy (no business rule deleted), does it restore the correct optimum, does it touch the actual error. What-if and
 conversation answers end in a JSON block checked against solver-computed keys.</p>
+<p>The tools behind each kind of question, with examples, are on <a href="../ask/">What you can ask</a>.</p>
 <h2 id="results">Results</h2>
 <h3 id="1-correctness-level">1. Correctness: level</h3>
 <p>First fix right, code against bare, on the same cases:</p>
@@ -352,66 +353,7 @@ longer splits into one hotel at a time.</p>
 </table></div>
 <p>optlens finds the conflict from the solver's own proof of infeasibility, so it never needs the whole model: 13 to 37
 conflicting constraints out of 279,000-837,000, found in 4 to 58 seconds.</p>
-<h3 id="4-what-you-can-ask">4. What you can ask</h3>
-<p>Every capability is a tool in Python, the MCP server and the plugin (with examples, model formats, solvers and limits:
-<a href="../ask/">What you can ask</a>):</p>
-<div class="table"><table>
-<thead>
-<tr>
-<th>you want to know</th>
-<th>optlens tools</th>
-<th>tested in</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>what the model is and means</td>
-<td><code>get_model_overview</code>, <code>query_constraints</code>, <code>query_variables</code>, <code>read_model_document</code>, <code>save_model_context</code></td>
-<td>every suite (the context)</td>
-</tr>
-<tr>
-<td>why it is infeasible</td>
-<td><code>compute_iis</code>, <code>feasibility_relaxation</code>, <code>drop_test</code></td>
-<td>the infeasible suites</td>
-</tr>
-<tr>
-<td>what fixes it</td>
-<td><code>fix_menu</code>, <code>suspicious_values</code> (with each flag's undo solved)</td>
-<td>the infeasible and wrong-optimum suites</td>
-</tr>
-<tr>
-<td>what happens if...</td>
-<td><code>modify_and_resolve</code>, <code>try_options</code>, <code>version_history</code></td>
-<td>what-if questions, planner conversations</td>
-</tr>
-<tr>
-<td>how two plans differ</td>
-<td><code>compare_versions</code> (against the closest optimal plan)</td>
-<td>what-if questions, planner conversations</td>
-</tr>
-<tr>
-<td>what a limit is worth, how far it can go</td>
-<td><code>marginal_value</code>, <code>sensitivity_report</code>, <code>attainable_limit</code></td>
-<td>what-if and goal questions</td>
-</tr>
-<tr>
-<td>why the plan doesn't do X</td>
-<td><code>why_not</code></td>
-<td>why-not questions</td>
-</tr>
-<tr>
-<td>how several models or scenarios compare</td>
-<td><code>add_model</code>, <code>compare_models</code></td>
-<td>scenario comparisons, the three-scenario conversation</td>
-</tr>
-<tr>
-<td>anything else, in code</td>
-<td><code>run_python</code> (optlens preloaded as <code>session</code>)</td>
-<td>the code setup, every suite</td>
-</tr>
-</tbody>
-</table></div>
-<h3 id="5-tools-code-or-plugin">5. Tools, code or plugin</h3>
+<h3 id="4-tools-code-or-plugin">4. Tools, code or plugin</h3>
 <div class="table"><table>
 <thead>
 <tr>
@@ -442,7 +384,7 @@ conflicting constraints out of 279,000-837,000, found in 4 to 58 seconds.</p>
 plugin</strong> answered 5/5 questions comparing three ad-allocation scenarios (three 9,680-variable MIPs opened side by side:
 status and objectives, a what-if on one scenario, the smallest feasible budget of another), at $0.14 a question (a
 small test).</p>
-<h3 id="6-optchat-and-domain-packs">6. optchat and domain packs</h3>
+<h3 id="5-optchat-and-domain-packs">5. optchat and domain packs</h3>
 <p>Turns answered right; mean cost per conversation:</p>
 <div class="table"><table>
 <thead>
@@ -512,7 +454,7 @@ seconds) and got turns wrong.</p>
 </tr>
 </tbody>
 </table></div>
-<h3 id="7-plan-comparison-on-large-mips">7. Plan comparison on large MIPs</h3>
+<h3 id="6-plan-comparison-on-large-mips">6. Plan comparison on large MIPs</h3>
 <p>A MIP with many equally good plans re-solves to any of them, so a plain diff mostly shows the solver's choice among
 ties: over 99 % of the reported changes on the ad min-cost what-ifs. optlens compares against the optimal plan
 <strong>closest</strong> to the old one (one extra solve, ≤ 1.5 s here):</p>
@@ -536,37 +478,12 @@ ties: over 99 % of the reported changes on the ad min-cost what-ifs. optlens com
 </table></div>
 <p>In a planner conversation, "campaign 3 now needs 48 impressions" is answered with the four slot changes the edit
 forces, adding up to the +32.4 cost, instead of a 779-variable reshuffle.</p>
-<h3 id="8-checked-fixes-for-suspicious-values">8. Checked fixes for suspicious values</h3>
+<h3 id="7-checked-fixes-for-suspicious-values">7. Checked fixes for suspicious values</h3>
 <p>optlens flags inputs that break their own pattern (a limit unlike its siblings', a flipped sense, an out-of-scale
 coefficient, a missing constraint) and solves each flag's undo, alone and together. On 221 cases with a known error, it hands
 over a verified correct fix for 47, and a wrong one for 2.</p>
 <h2 id="what-optlens-adds-when-the-agent-is-already-right">What optlens adds when the agent is already right</h2>
-<div class="table"><table>
-<thead>
-<tr>
-<th></th>
-<th></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Cost and speed</strong></td>
-<td>35-48 % less spend, fewer turns, 35-61 % less time on models too large to read</td>
-</tr>
-<tr>
-<td><strong>The same facts every time</strong></td>
-<td>conflicts, flags, fixes and plan diffs come from tested code, not a script written this session</td>
-</tr>
-<tr>
-<td><strong>Every number checked</strong></td>
-<td>recommended fixes are re-solved before they are offered</td>
-</tr>
-<tr>
-<td><strong>Any solver, local</strong></td>
-<td>HiGHS and SCIP out of the box, your own Gurobi licence; a hard time limit on every solve; LP, MPS, Pyomo, gurobipy and PuLP</td>
-</tr>
-</tbody>
-</table></div>
+<p>Beyond cost and speed: conflicts, flags, fixes and plan diffs come from tested code, not a script written this session, and every recommended fix is re-solved before it is offered.</p>
 <h2 id="limits">Limits</h2>
 <ul>
 <li>One model family (Claude Sonnet 5.5); one or two runs per setting (the messy week with the pack: three).</li>
@@ -578,10 +495,7 @@ over a verified correct fix for 47, and a wrong one for 2.</p>
 <h2 id="try-it">Try it</h2>
 <pre><code>pip install &quot;optlens[scip,mcp] @ git+https://github.com/jjd-lab/optlens&quot;
 </code></pre>
-<p>Then connect it once: in Claude Code, <code>claude plugin install optlens --marketplace jjd-lab/optlens</code>; in Codex,
-<code>codex mcp add optlens -- optlens-mcp</code>; in Cursor, VS Code or Claude Desktop, one line in the MCP config (the README
-has each). The agent gets the tools and the method with them. optchat and domain packs for your models:
-hello@optlens.dev.</p>
+<p>Then connect it once to Claude Code, Codex, Cursor, VS Code or Claude Desktop; the <a href="https://github.com/jjd-lab/optlens#use-it-with-your-agent">README</a> has the line for each.</p>
 <p>The benchmark itself stays private, so that it keeps measuring new versions of optlens fairly; the tables above
 are generated from its recorded runs. Issues with your own models are the most useful feedback we can get: open a
 GitHub issue or write to hello@optlens.dev.</p>
