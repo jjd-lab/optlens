@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Examples: optchat with a planner | optlens</title>
+<meta name="description" content="Two recorded sessions of optchat, the planner agent built on optlens, on a hotel revenue-management model: an infeasible week, data errors, a new rule, and a rate plan that feeds the booking plan.">
+<link rel="canonical" href="https://optlens.dev/examples/">
+<meta property="og:title" content="Examples: optchat with a planner | optlens">
+<meta property="og:description" content="Two recorded sessions of optchat, the planner agent built on optlens, on a hotel revenue-management model: an infeasible week, data errors, a new rule, and a rate plan that feeds the booking plan.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://optlens.dev/examples/">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="../">opt<span>lens</span></a>
+  <nav><a href="../">Home</a><a href="../ask/">What you can ask</a><a href="../examples/">Examples</a><a href="../benchmark/">Benchmark</a><a class="hide-sm" href="https://github.com/jjd-lab/optlens">GitHub</a><a class="hide-sm" href="mailto:hello@optlens.dev">Contact</a></nav>
+</div></header>
+<article class="post"><h1 id="examples-optchat-with-a-planner">Examples: optchat with a planner</h1>
+<p><em>Two working sessions on the hotel revenue-management model in optlens's public hotel pack: a planner's questions and
+optchat's answers, as recorded.</em></p>
+<p><strong>optchat</strong> is a chat agent built on optlens for the people who act on a model's plan. These sessions come from the
+benchmark's recorded runs (Claude Sonnet 5.5, optchat with the hotel pack). Every answer is optchat's own; the only
+things removed are the JSON block the benchmark asks for at the end of each answer and two progress notes. Every turn
+was scored right against solver-computed keys. Version numbers (v1, v2, ...) are the changes optchat keeps; a planner
+approves one to make it the plan.</p>
+<h2 id="1-a-messy-week-an-infeasible-plan-data-errors-and-a-new-rule">1. A messy week: an infeasible plan, data errors and a new rule</h2>
+<p>A 14-night room plan for one hotel comes back infeasible after the week's data load. Five questions, $0.34 in
+total.</p>
+<blockquote>
+<p><strong>Planner:</strong> I plan room sales for our hotel for the next 14 nights. After this week's data load the plan came back infeasible. Why? Fix only what makes it infeasible, keep that fix, and tell me the plan's room revenue. We will look at anything else next.</p>
+</blockquote>
+<p><strong>optchat</strong> (4 tool calls):</p>
+<p>The plan was infeasible because of one mistyped number: the minimum occupancy for night 5 was loaded as 700 rooms instead of 70. With that corrected, the plan solves to a room revenue of <strong>$588,067.20</strong>.</p>
+<p><strong>Cause.</strong> The solver's minimal conflict had four rules: the occupancy minimum for night 5 (<code>occupancy_floor(h1_d5)</code>) and the housekeeping limits for nights 6, 7 and 8 (<code>housekeeping(h1_d6)</code>, <code>h1_d7</code>, <code>h1_d8</code>).
+- The night-5 minimum requires at least 700 rooms in house. The hotel has 200 rooms, and the model document sets the minimum at 70 for that night.
+- The other 13 nights are at the documented level.
+- The data check against the documented inputs flagged this value as a difference. It breaks the pattern of the other nights by a factor of 10, so it looks like a data-load error, probably an extra zero.
+- The housekeeping rows appear in the conflict only because the check-outs from those stays pass through them.</p>
+<p><strong>Fix (v1).</strong> I reset the night-5 minimum from 700 to 70 and changed nothing else. The re-solve is optimal. The night-5 minimum is no longer tight, so the 70 isn't forcing the plan.</p>
+<p><strong>Room revenue: $588,067.20.</strong> The original plan had no solution, so there is no earlier revenue to compare against.</p>
+<p><strong>Not changed, for the next look.</strong> The data check found other differences from the documented inputs. They don't make the plan infeasible, so I left them.
+- <strong>Housekeeping limit:</strong> all 13 nights show 95 check-outs a day, against the documented 110.
+- <strong>Demand forecasts:</strong> 143 forecast rows are 10 times the documented values. For example, standard 1-night stays arriving on night 11 show 130 early bookings at tier t0 against a documented 13. This will likely overstate demand and revenue.</p>
+<p>I did not test what correcting either one does to revenue. Approve v1 to make it the plan.</p>
+<blockquote>
+<p><strong>Planner:</strong> It solves now, but revenue comes out at 588,067.20, about 1.4 % below last week's 596,516.55 with similar demand. Is anything else wrong in this week's inputs? Fix errors in our own planning rules and capacities and keep the fixes, but do not change any demand forecast: forecasts come from the forecasting team, so tell me if one looks wrong instead. What is the room revenue after your fixes?</p>
+</blockquote>
+<p><strong>optchat</strong> (4 tool calls):</p>
+<p>After two fixes the plan solves to <strong>$600,995.50</strong> room revenue. That is above last week's $596,516.55.</p>
+<p><strong>What was still wrong.</strong> The only remaining error in our own planning rules was the housekeeping limit. This week's load had the housekeeping turnover cap at 95 check-outs a day (<code>housekeeping(h1_d1)</code> to <code>h1_d13</code>). The documented value is 110, which is 55% of 220 rooms in the model document. At 95, the cap was binding on 12 of the 13 mornings: nights 1–9 and 11–13 each had 95 of 95 used. Those mornings were holding back longer-stay and multi-night sales.</p>
+<p><strong>Fixes kept, built on your v1:</strong>
+- <strong>v1:</strong> night-5 occupancy minimum from 700 to 70 (the earlier fix).
+- <strong>v2:</strong> housekeeping cap from 95 to 110 on nights 1–13. It re-solves optimal at $600,995.50.
+- <strong>Revenue change:</strong> v2 is $12,928.30 above v1's $588,067.20, since $600,995.50 − $588,067.20 = $12,928.30.</p>
+<p>The data check now finds no differences in capacities or rules. It finds differences only in the demand forecasts.</p>
+<p><strong>A forecast that looks wrong (not changed).</strong> The data check lists 143 demand rows whose limits are 10 times the documented forecast. Every row it printed is for standard rooms arriving on night 11, across all stay lengths, booking windows and tiers. For example:
+- 1-night stays, early window, tier t0: 130 against 13 documented.
+- 1-night stays, advance window, tier t0: 240 against 24 documented.</p>
+<p>I did not print the other 123 rows. Night 9, the event night, also shows high early and advance demand (19 against a typical 5 for early t0). The forecasting team should confirm both nights. If the night-11 figures are a decimal slip, the plan is overstating night-11 revenue. I did not test the effect of correcting them.</p>
+<p>Approve v2 to make it the plan. It contains both fixes.</p>
+<blockquote>
+<p><strong>Planner:</strong> The forecasting team confirms that night 11's forecast was loaded wrong: the event uplift was applied to it by mistake, so every one of its demand figures is ten times too high. If night 11's forecast were corrected to a tenth of what was loaded, what would the room revenue be? Just a check: keep the plan as it is until they send the corrected file.</p>
+</blockquote>
+<p><strong>optchat</strong> (2 tool calls):</p>
+<p>If night 11's forecast were cut to a tenth of what was loaded, room revenue would be <strong>$596,516.55</strong>. That is $4,478.95 below the current plan's $600,995.50, since $596,516.55 − $600,995.50 = −$4,478.95. It also matches last week's $596,516.55 exactly. That fits the forecasting team's explanation, and it means the loaded night-11 uplift was the only thing separating this week from last week once the other fixes were in.</p>
+<p><strong>What I changed in the what-if.</strong> I divided all 180 night-11 demand limits by 10, across standard, deluxe and suite rooms, every stay length, booking window and tier. Every loaded value was a multiple of 10, so each tenth is a whole number. The what-if is built on v2 (the occupancy and housekeeping fixes) and re-solves optimal.</p>
+<p><strong>Your plan is unchanged.</strong> The what-if is saved as v3, an option only, and v2 stays the plan until the corrected file arrives. Reload the corrected forecast and I'll re-solve to confirm.</p>
+<blockquote>
+<p><strong>Planner:</strong> From this week the brand wants event nights sold out: on event night 9, every one of the 197 rooms we sell (116 standard, 61 deluxe and 20 suite, with the overbooking allowance) must be booked, on top of the group block. That is intended, not an error. Add it to the plan and keep it. Can we meet it, and if not, what stands in the way?</p>
+</blockquote>
+<p><strong>optchat</strong> (7 tool calls):</p>
+<p>No, we can't meet the sell-out as it stands: with night 9 sold out added, the plan has no solution. Standard and deluxe rooms aren't the problem. The suites are, and they fall exactly 4 rooms short.</p>
+<p>I added the rule on top of your current plan (v2, with the two data fixes). It sets the minimum rooms in house on night 9 to 116 standard, 61 deluxe and 20 suite. That version, v4, is infeasible, so I treated it as an option and it is not the plan.</p>
+<p><strong>What stands in the way.</strong> The 20 suites on night 9 can't all be filled under the rules we have today.
+- <strong>Suite limit:</strong> with the sell-out row dropped, the most suites we can have in house on night 9 is 16 (<code>room_capacity(h1_suite_d9)</code>), so we are 4 short.
+- <strong>Discount cap:</strong> only 7 suite arrivals on that night can be sold at the two cheapest tiers (<code>discount_cap(h1_suite_d9)</code>, 35% of 20).
+- <strong>Rate fence:</strong> last-minute bookers can't take the cheap tiers (<code>rate_fence</code>).
+- <strong>One-night closure:</strong> one-night suite stays are closed on event nights (<code>closed_to_one_night(h1_suite_d9)</code>).
+- <strong>Forecast:</strong> the forecast for the pricier tiers is zero or about 1 for many suite stays touching night 9. In the first conflict, the suite 3-night, last-minute, tier t4 stays arriving on night 7 are forecast at 0 (<code>demand_limit(h1_suite_3n_d7_lastminute_t4)</code>).
+- <strong>Suite conflict (the full conflict has 71 rows):</strong> there are not enough suite bookings that the cap, fence and closure rules allow.</p>
+<p><strong>Options.</strong> I solved each one together with the full night-9 sell-out. Each is a single change on its own, built on v2.</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Change</th>
+<th>Status</th>
+<th>Revenue</th>
+<th>vs. current plan ($600,995.50)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>v5 Loosen the discount cap</td>
+<td><code>discount_cap(h1_suite_d9)</code> 7 → 11</td>
+<td>optimal</td>
+<td>$601,471.50</td>
+<td>+$476.00</td>
+</tr>
+<tr>
+<td>v6 Allow some 1-night suite stays on night 9</td>
+<td><code>closed_to_one_night(h1_suite_d9)</code> 0 → 4</td>
+<td>optimal</td>
+<td>$603,053.50</td>
+<td>+$2,058.00</td>
+</tr>
+<tr>
+<td>v8 Raise suite forecast (upstream, forecasting team)</td>
+<td><code>demand_limit(h1_suite_3n_d7_lastminute_t4)</code> 0 → 4</td>
+<td>optimal</td>
+<td>$606,892.30</td>
+<td>+$5,896.80</td>
+</tr>
+<tr>
+<td>v7 Lower the suite sell-out to 16</td>
+<td><code>room_capacity(h1_suite_d9)</code> 20 → 16</td>
+<td>optimal</td>
+<td>$600,995.50</td>
+<td>$0.00</td>
+</tr>
+</tbody>
+</table></div>
+<p>The "vs. current plan" column is each revenue minus $600,995.50.</p>
+<ul>
+<li><strong>Rate fence:</strong> loosening it alone does not fix this. The solver says the model is still infeasible with the whole rate-fence family dropped.</li>
+<li><strong>Forecast:</strong> v8 is a forecast change, not something we own. Suite demand for that product would have to rise from 0 to 4. It would also lift revenue.</li>
+<li><strong>Sell-out target:</strong> v7 is the only option that gives up part of the brand's target.</li>
+</ul>
+<p><strong>Recommendation.</strong> v6 is the best option we can decide ourselves. It keeps the full sell-out and gives the most revenue of the options we own. It does let up to 4 one-night suite stays onto an event night, so check that this fits the brand's event rules. If it doesn't, v5 (raising the discount cap) keeps the closure rule and costs the least. Neither is approved yet. Approve v6 or v5 to make it the plan. Until then the plan stays at v2.</p>
+<blockquote>
+<p><strong>Planner:</strong> Keep the sold-out target for night 9. What is the smallest number of one-night suite stays we would have to accept on night 9 to meet it? Allow exactly that many one-night suite arrivals on night 9, keep it, and tell me the room revenue.</p>
+</blockquote>
+<p><strong>optchat</strong> (1 tool call):</p>
+<p>The smallest number is <strong>4</strong> one-night suite arrivals on night 9. With that limit, the plan keeps the full night-9 sell-out and room revenue is <strong>$603,053.50</strong>.</p>
+<p><strong>Evidence:</strong>
+- With the one-night closure row dropped, the number of one-night suite arrivals the model could then take on night 9 ranges from 4 to 19. The sell-out is therefore unreachable below 4 (<code>closed_to_one_night(h1_suite_d9)</code>).
+- Allowing 3 one-night suite arrivals is infeasible (v9).
+- Allowing exactly 4 is optimal (v10): <code>closed_to_one_night(h1_suite_d9)</code> is raised from 0 to 4, and the night-9 sell-out is in the plan at 116 standard, 61 deluxe and 20 suite rooms.</p>
+<p><strong>Revenue:</strong> $603,053.50 is $2,058.00 above the earlier plan's $600,995.50, since $603,053.50 − $600,995.50 = $2,058.00. The sell-out costs nothing here. The 4 extra one-night suite stays raise revenue.</p>
+<p>v10 is built on v2 and contains the sell-out and the limit of 4 together, so the plan now includes both. Standard and deluxe one-night stays on night 9 stay closed. The night-11 forecast is still as loaded, pending the corrected file.</p>
+<h2 id="2-two-linked-models-a-rate-plan-that-feeds-the-booking-plan">2. Two linked models: a rate plan that feeds the booking plan</h2>
+<p>The hotel sets its rates first (the rate plan), then plans bookings at those rates (the booking plan). A change to the
+rates has to be carried into the bookings; the hotel pack's helper does it exactly. Four questions, $0.19 in
+total. Without the pack, optchat answered 2 of these 4 questions right, and the coding agent with optlens 1.</p>
+<blockquote>
+<p><strong>Planner:</strong> We set our hotel's rates for the next 14 nights first (the rate plan), then plan bookings at those rates (the booking plan). Walk me through the booking plan: what room revenue does it make, and how much of it comes from suites?</p>
+</blockquote>
+<p><strong>optchat</strong> (3 tool calls):</p>
+<p><strong>The booking plan (v0) makes $627,473.48 in room revenue over the 14 nights. Suites bring in $59,404.80 of that, about 9.5%.</strong></p>
+<p>Suites are 9.5% of revenue, well below standard and deluxe.</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Room type</th>
+<th>Revenue</th>
+<th>Share of total</th>
+<th>Room-nights sold</th>
+<th>Share sold at discounted tiers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Standard</td>
+<td>$336,275.76</td>
+<td>53.6%</td>
+<td>1,763</td>
+<td>5%</td>
+</tr>
+<tr>
+<td>Deluxe</td>
+<td>$231,792.92</td>
+<td>36.9%</td>
+<td>925</td>
+<td>6%</td>
+</tr>
+<tr>
+<td>Suite</td>
+<td>$59,404.80</td>
+<td>9.5%</td>
+<td>125</td>
+<td>77%</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td><strong>$627,473.48</strong></td>
+<td>100%</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p>The three revenue figures add up to the total: 336,275.76 + 231,792.92 + 59,404.80 = 627,473.48.</p>
+<p><strong>Standard and deluxe are sold out.</strong>
+- Every night has 116 of 116 standard rooms and 61 of 61 deluxe rooms in house. Those are the rooms for sale after the overbooking allowance and the 10 standard rooms held for the group block.
+- Revenue on these two types is therefore capped by room capacity and has little room to grow.</p>
+<p><strong>Suites have empty rooms.</strong>
+- Suites sell only 5 to 14 of the 20 rooms for sale each night.
+- Total house occupancy is 92% to 97% of rooms for sale.
+- Suites are the only room type with spare rooms, but 77% of the suite room-nights sold are at the cheaper discounted tiers (t0 and t1).</p>
+<p><strong>What I checked and what I didn't:</strong>
+- <code>data_check</code> finds no differences from the documented inputs. The plan is solved on the data as documented, with no sign of a data-entry error.
+- The document lists $596,516.55 for the original model at list rates. v0 is $30,956.93 higher (627,473.48 − 596,516.55). I take this to be because v0 is built at the rate plan's prices and demand. I did not open the <code>rates</code> model or compare the two builds, so that explanation is not confirmed.
+- I did not run a re-solve to test why suites lean so heavily on discounted tiers. If you want, I can test that, or test what a suite price change would do.</p>
+<blockquote>
+<p><strong>Planner:</strong> Suite revenue looks well below what we usually make over a fortnight like this. Is something wrong in the rate plan's inputs? Fix what is clearly wrong in the rate plan and keep the fix, then update the booking plan to the corrected rates and keep that too. What is the booking plan's room revenue now?</p>
+</blockquote>
+<p><strong>optchat</strong> (10 tool calls):</p>
+<p>Yes, something was wrong in the rate plan, and I've fixed it. The booking plan's room revenue is now <strong>$664,372.34</strong>, up $36,898.86 from $627,473.48.</p>
+<p><strong>What was wrong.</strong> The rate plan's limits on how far the suite rate can move from one night to the next were ten times too tight. They were set to 12.6 where the documented value is 126. This affected 26 limits: <code>rate_step_up(h1_suite_d1…d13)</code> and <code>rate_step_down(h1_suite_d1…d13)</code>. Every other input in the rate plan matched its documented value. With the suite rate nearly frozen from night to night, the plan couldn't follow the nights when suite demand is stronger.</p>
+<p><strong>What I changed and kept</strong>
+- <strong>Rate plan, v2:</strong> I reset all 26 limits to ±126. It solves to optimal. Its own objective rose from 534,556.77 to 543,081.51, but that is only an estimate, so I don't use it to predict booking revenue.
+- <strong>Booking plan, v3:</strong> I carried the corrected rates onto the original booking plan (v0). The carry changed 977 prices and demand limits. It solves to optimal.</p>
+<p><strong>Booking plan revenue by room type</strong></p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Room type</th>
+<th>Before (v0)</th>
+<th>Now (v3)</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Standard</td>
+<td>$336,275.76</td>
+<td>$332,809.03</td>
+<td>−$3,466.73</td>
+</tr>
+<tr>
+<td>Deluxe</td>
+<td>$231,792.92</td>
+<td>$230,675.95</td>
+<td>−$1,116.97</td>
+</tr>
+<tr>
+<td>Suite</td>
+<td>$59,404.80</td>
+<td>$100,887.36</td>
+<td>+$41,482.56</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td>$627,473.48</td>
+<td>$664,372.34</td>
+<td>+$36,898.86</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>Suites:</strong> suite room-nights sold rose from 125 to 269. The share sold at discounted tiers fell from 77% to 57%.</li>
+<li><strong>Standard and deluxe:</strong> both dropped slightly, standard by 3 room-nights and deluxe by none.</li>
+<li><strong>Net effect:</strong> the suite gain of $41,482.56 outweighs the standard and deluxe losses of 3,466.73 + 1,116.97 = $4,583.70.</li>
+</ul>
+<p>To make this the plan, approve v3. The corrected rate plan is v2.</p>
+<blockquote>
+<p><strong>Planner:</strong> Revenue management wants the event night's standard rate capped at 130 % of the list rate (night 9). Make that change in the rate plan and keep it. What is the rate plan's expected revenue with the cap?</p>
+</blockquote>
+<p><strong>optchat</strong> (2 tool calls):</p>
+<p>With the cap, the rate plan's expected revenue is <strong>$542,659.35</strong>, which is $422.16 lower than the $543,081.51 it was before. The cap is kept as rate-plan version <strong>v4</strong>, built on the corrected rate plan v2. The problem is still solvable, and the solve status is optimal.</p>
+<p><strong>What I changed.</strong> I closed the 150% rate level for standard rooms on night 9, the event night (<code>rate_level(h1_standard_d9_L4)</code>, upper bound set to 0). The standard rate that night is now 130% of list, $182, down from 150%, $210. The event-night minimum rate is 130% ($182), so the cap still meets it.</p>
+<p><strong>Other rates moved too.</strong> Re-optimizing changed two other standard-room rates, even though you only asked to cap night 9:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Night</th>
+<th>Standard rate in v2</th>
+<th>Standard rate in v4</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>8</td>
+<td>130%, $182</td>
+<td>100%, $140</td>
+</tr>
+<tr>
+<td>10</td>
+<td>130%, $182</td>
+<td>115%, $161</td>
+</tr>
+</tbody>
+</table></div>
+<p>The only other rate that differs from v2 is the night 9 suite and deluxe rates, which were already at 130% and are unchanged.</p>
+<p><strong>This is an estimate, not the booking plan's revenue.</strong> The rate plan's own objective can move the opposite way from what the booking plan earns. The booking plan still uses the v2 rates (v3). To see the cap's real effect on bookings, I'd carry v4 into the booking plan. You have kept changes in the booking plan (v3, built at the v2 rates), so tell me which base you want:
+- <strong>Onto v3:</strong> the booking plan with the v2 rates, which you kept earlier.
+- <strong>Onto v0:</strong> the original booking plan.</p>
+<p>Should I update the booking plan, and onto which one?</p>
+<blockquote>
+<p><strong>Planner:</strong> Yes, update the booking plan to the capped rate plan and keep it. What is the booking plan's room revenue now, and how much did the cap cost us?</p>
+</blockquote>
+<p><strong>optchat</strong> (1 tool call):</p>
+<p>With the cap in place, the booking plan's room revenue is <strong>$652,670.75</strong>. The cap cost <strong>$11,701.59</strong> against the uncapped corrected plan (v3, $664,372.34). The capped plan is kept as booking plan version <strong>v5</strong>, which is v3 carried onto the capped rates (v4). It solves to optimal, and the carry changed 499 prices and demand limits.</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Room type</th>
+<th>v3 (uncapped)</th>
+<th>v5 (capped)</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Standard</td>
+<td>$332,809.03</td>
+<td>$323,263.91</td>
+<td>−$9,545.12</td>
+</tr>
+<tr>
+<td>Deluxe</td>
+<td>$230,675.95</td>
+<td>$228,519.48</td>
+<td>−$2,156.47</td>
+</tr>
+<tr>
+<td>Suite</td>
+<td>$100,887.36</td>
+<td>$100,887.36</td>
+<td>$0</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td>$664,372.34</td>
+<td>$652,670.75</td>
+<td><strong>−$11,701.59</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p>The three changes add up to the total: 9,545.12 + 2,156.47 = 11,701.59.</p>
+<ul>
+<li><strong>The cap cost far more than the rate plan estimated.</strong> The rate plan's own estimate was −$422.16. The booking plan loses $11,701.59, which is about 28 times that (11,701.59 ÷ 422.16). This is why I don't read the rate plan's objective as booking revenue.</li>
+<li><strong>Standard rooms lose most of it.</strong> Standard room-nights fell from 1,760 to 1,755, and the standard rate on night 9 dropped from $210 to $182.</li>
+<li><strong>Deluxe also lost revenue, though the cap was on standard.</strong> Re-optimizing the rate plan also lowered the deluxe rate on night 10 from 115% to 100% of list, from $241 to $210. The same re-run lowered standard rates on nights 8 and 10. These knock-on rate changes are part of the $11,701.59, not only the night 9 cap.</li>
+<li><strong>Suites are unchanged.</strong> Suite revenue is $100,887.36 in both plans, and suite rates did not move.</li>
+</ul>
+<p>I haven't tested a cap that leaves the other nights' rates as they were. That would show how much of the cost comes from the night 9 cap alone. I can run it if you want.</p>
+<p>To make this the plan, approve v5.</p>
+<p>More: <a href="../ask/">What you can ask</a> &middot; <a href="../benchmark/">The benchmark</a></p><p><a href="../">&larr; Back to optlens</a></p></article>
+<footer class="bottom"><div class="wrap">
+  <span>optlens is open source (Apache-2.0)</span><a href="https://github.com/jjd-lab/optlens">GitHub</a><a href="mailto:hello@optlens.dev">hello@optlens.dev</a>
+</div></footer>
+</body>
+</html>

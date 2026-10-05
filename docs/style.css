@@ -50,9 +50,12 @@ footer.bottom .wrap { display: flex; flex-wrap: wrap; gap: 8px 22px; }
 article.post { max-width: 780px; margin: 0 auto; padding: 56px 24px 24px; }
 article.post h1 { font-size: clamp(32px, 5vw, 46px); line-height: 1.12; letter-spacing: -.03em; margin: 0 0 14px; }
 article.post h1 + p em { display: block; font-style: normal; color: var(--muted); font-size: 19px; }
-article.post h2 { font-size: 27px; letter-spacing: -.02em; margin: 52px 0 12px; padding-top: 6px; }
+article.post h2 { font-size: 27px; letter-spacing: -.02em; margin: 52px 0 12px; padding-top: 6px; scroll-margin-top: 110px; }
 article.post h3 { font-size: 20px; margin: 36px 0 10px; }
 article.post p, article.post li { font-size: 17px; }
+article.post blockquote { margin: 34px 0 14px; padding: 12px 18px; border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent); border-radius: 0 10px 10px 0; }
+article.post blockquote p { margin: 0; }
 .tldr { background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   border-radius: 14px; padding: 6px 26px 10px; margin: 30px 0; }
 .tldr h2 { margin-top: 16px !important; font-size: 15px !important; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); }
