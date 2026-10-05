@@ -27,7 +27,8 @@ six setups compare.</em></p>
 <li><strong>optlens</strong> is an open-source Python library that debugs LP and MILP models: why a model is infeasible, the smallest
   fix, what a change costs, how two plans differ. An agent uses it through tools (MCP) or from its own Python code.</li>
 <li><strong>A coding agent with a solver already gets the answers right:</strong> 95-100 % in every suite, with or without
-  optlens.</li>
+  optlens, on Claude Sonnet 5.5. The cases are not easy: on Sonnet 5 the bare agent
+  <a href="#1-correctness-level">left 5 of the first 27 unanswered</a>.</li>
 <li><strong>optlens's edge is cost and speed:</strong> the same correct answers at <strong>35-48 % less cost</strong>, and on models too large
   to read, <strong>35-61 % less time</strong>.</li>
 <li><strong>On linked models, a domain pack wins on correctness too:</strong> where a rate-plan change must flow into the booking
@@ -269,6 +270,53 @@ conversation answers end in a JSON block checked against solver-computed keys.</
 <p>The two are never more than one case apart. A frontier coding agent computes its own IIS, relaxes constraints and
 re-solves; on a model too large to read, it reads the file as text and solves a piece of it. If you evaluate LLM tools
 for optimization, compare them with a bare agent and a solver, not with a chat model.</p>
+<p><strong>These cases are not easy for a weaker model.</strong> The 27 mixed infeasible models of the first row above ran first on
+Claude Sonnet 5, then on Sonnet 5.5, with the same questions and scoring:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>27 infeasible models, first fix right</th>
+<th>Sonnet 5: optlens (tools)</th>
+<th>Sonnet 5: bare</th>
+<th>Sonnet 5.5: optlens (tools)</th>
+<th>Sonnet 5.5: bare</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>right</td>
+<td>24/27</td>
+<td>21/27</td>
+<td>25/27</td>
+<td>26/27</td>
+</tr>
+<tr>
+<td>left unanswered (30-turn limit or crash)</td>
+<td>1</td>
+<td>5</td>
+<td>0</td>
+<td>0</td>
+</tr>
+<tr>
+<td>median turns</td>
+<td>7</td>
+<td>21</td>
+<td>4</td>
+<td>9</td>
+</tr>
+<tr>
+<td>cost per case</td>
+<td>$0.100</td>
+<td>$0.245</td>
+<td>$0.064</td>
+<td>$0.119</td>
+</tr>
+</tbody>
+</table></div>
+<p>Sonnet 5 needed the tools: the bare agent ran out of turns on 5 cases and fixed 21, where optlens answered 26 and fixed
+24. Sonnet 5.5 is a clear improvement: every case is answered, the bare agent's turns fall from 21 to 9 and its cost
+per case by half, and its correctness catches up. The Sonnet 5 runs also predate the model context (worth about one
+case, as shown above), so the model explains most of the jump, not all of it.</p>
 <h3 id="2-cost-a-third-to-a-half-less-growing-with-model-size">2. Cost: a third to a half less, growing with model size</h3>
 <figure class="chart"><div class="legend"><span><i style="background:var(--series-1)"></i>optlens</span><span><i style="background:var(--series-2)"></i>bare (solver only)</span></div><svg viewBox="0 0 720 290" role="img" aria-label="Mean cost per case by model size"><line class="grid" x1="16" x2="704" y1="244" y2="244"/><rect class="bar" x="45.2" y="167.1" width="53.8" height="76.9" rx="4" fill="var(--series-1)"><title>optlens, small: $0.056 per case, 5.1 turns, 80/81 right</title></rect><text class="val" x="72.1" y="161.1" text-anchor="middle">$0.056</text><rect class="bar" x="103.0" y="126.5" width="53.8" height="117.5" rx="4" fill="var(--series-2)"><title>bare (solver only), small: $0.085 per case, 6.2 turns, 79/81 right</title></rect><text class="val" x="129.9" y="120.5" text-anchor="middle">$0.085</text><text class="note" x="102.0" y="20.0" text-anchor="middle">&#8722;35%</text><text class="cat" x="102.0" y="266.0" text-anchor="middle">small</text><rect class="bar" x="217.2" y="152.9" width="53.8" height="91.1" rx="4" fill="var(--series-1)"><title>optlens, mid: $0.066 per case, 5.7 turns, 56/56 right</title></rect><text class="val" x="244.1" y="146.9" text-anchor="middle">$0.066</text><rect class="bar" x="275.0" y="91.2" width="53.8" height="152.8" rx="4" fill="var(--series-2)"><title>bare (solver only), mid: $0.111 per case, 8.3 turns, 56/56 right</title></rect><text class="val" x="301.9" y="85.2" text-anchor="middle">$0.111</text><text class="note" x="274.0" y="20.0" text-anchor="middle">&#8722;40%</text><text class="cat" x="274.0" y="266.0" text-anchor="middle">mid</text><rect class="bar" x="389.2" y="175.0" width="53.8" height="69.0" rx="4" fill="var(--series-1)"><title>optlens, large: $0.050 per case, 3.7 turns, 13/13 right</title></rect><text class="val" x="416.1" y="169.0" text-anchor="middle">$0.050</text><rect class="bar" x="447.0" y="124.1" width="53.8" height="119.9" rx="4" fill="var(--series-2)"><title>bare (solver only), large: $0.087 per case, 6.7 turns, 13/13 right</title></rect><text class="val" x="473.9" y="118.1" text-anchor="middle">$0.087</text><text class="note" x="446.0" y="20.0" text-anchor="middle">&#8722;42%</text><text class="cat" x="446.0" y="266.0" text-anchor="middle">large</text><rect class="bar" x="561.2" y="149.5" width="53.8" height="94.5" rx="4" fill="var(--series-1)"><title>optlens, too large to read: $0.069 per case, 6.1 turns, 16/16 right</title></rect><text class="val" x="588.1" y="143.5" text-anchor="middle">$0.069</text><rect class="bar" x="619.0" y="61.4" width="53.8" height="182.6" rx="4" fill="var(--series-2)"><title>bare (solver only), too large to read: $0.133 per case, 10.0 turns, 16/16 right</title></rect><text class="val" x="645.9" y="55.4" text-anchor="middle">$0.133</text><text class="note" x="618.0" y="20.0" text-anchor="middle">&#8722;48%</text><text class="cat" x="618.0" y="266.0" text-anchor="middle">too large to read</text></svg><figcaption>Mean cost per case and run, same cases; the percentage is optlens's saving. Hover a bar for turns and correctness.</figcaption></figure>
 
@@ -486,7 +534,7 @@ over a verified correct fix for 47, and a wrong one for 2.</p>
 <p>Beyond cost and speed: conflicts, flags, fixes and plan diffs come from tested code, not a script written this session, and every recommended fix is re-solved before it is offered.</p>
 <h2 id="limits">Limits</h2>
 <ul>
-<li>One model family (Claude Sonnet 5.5); one or two runs per setting (the messy week with the pack: three).</li>
+<li>One model family (Claude Sonnet 5.5; Sonnet 5 only on the first 27 cases, above); one or two runs per setting (the messy week with the pack: three).</li>
 <li>Every correctness suite is saturated: these cases cannot show further gains in correctness.</li>
 <li>The largest models are one synthetic family (hotel revenue management): 16 cases and 2 conversations.</li>
 <li>The plugin row is 5 questions; the optchat rows are one run each, the two-stage rate plan one conversation.</li>
