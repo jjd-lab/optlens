@@ -52,6 +52,8 @@ def _capability(md: od.ModelData) -> tuple[str, str] | None:
     """A solver the model needs, whatever is faster."""
     if md.quadratic_objective and md.is_mip:
         return "scip", "mixed-integer QP: HiGHS cannot solve it"
+    if not md.convex_objective():
+        return "scip", "non-convex quadratic objective: HiGHS cannot solve it"
     return None
 
 
@@ -539,7 +541,7 @@ class Session:
         if cap := _capability(md):
             self.route, why = cap
         elif not md.is_mip:
-            self.route, why = "highs", "LP"
+            self.route, why = "highs", "convex QP" if md.quadratic_objective else "LP"
         elif not self.race or md.num_rows * md.num_cols < RACE_MIN_SIZE:
             self.route, why = self.default_solver, "small MIP"
         elif md.A.nnz > RACE_MAX_NNZ:

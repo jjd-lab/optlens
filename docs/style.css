@@ -69,4 +69,6 @@ svg text { font-family: Inter, -apple-system, "Segoe UI", sans-serif; }
 svg .val { fill: var(--text); font-size: 13px; font-weight: 600; } svg .cat { fill: var(--muted); font-size: 13.5px; }
 svg .note { fill: var(--accent); font-size: 13px; font-weight: 700; } svg .grid { stroke: var(--line); }
 svg rect.bar:hover { filter: brightness(1.12); }
-@media (max-width: 640px) { header.top nav a.hide-sm { display: none; } .hero { padding: 56px 0 40px; } section { padding: 48px 0; } }
+@media (max-width: 640px) { header.top nav a.hide-sm { display: none; }
+  header.top .wrap { flex-wrap: wrap; height: auto; padding-top: 10px; padding-bottom: 10px; row-gap: 6px; }
+  header.top nav { width: 100%; gap: 14px; } header.top nav a { font-size: 14px; white-space: nowrap; } .hero { padding: 56px 0 40px; } section { padding: 48px 0; } }

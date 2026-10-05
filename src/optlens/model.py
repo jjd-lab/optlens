@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import re
+import weakref
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -15,6 +16,9 @@ import numpy as np
 import scipy.sparse as sp
 
 INF = highspy.kHighsInf
+CONVEXITY_CHECK_MAX = 3000  # variables in the quadratic term above which convexity is assumed, not checked (a dense
+                            # eigenvalue check on that many takes seconds)
+_CONVEX: dict[tuple[int, bool], tuple[weakref.ref, bool]] = {}  # (id(Q), minimize) -> (Q, convex): edits keep Q
 
 
 def _inf(v: float | None) -> float | None:
@@ -45,6 +49,24 @@ class ModelData:
     @property
     def quadratic_objective(self) -> bool:
         return self.Q is not None
+
+    def convex_objective(self) -> bool:
+        """Whether the objective is convex for its sense (a linear one is): 0.5 x'Qx needs Q positive semidefinite to
+        minimize, negative semidefinite to maximize. HiGHS solves only convex QPs. Checked on the variables the quadratic
+        term touches; above CONVEXITY_CHECK_MAX of them it is assumed convex."""
+        if self.Q is None:
+            return True
+        key = (id(self.Q), self.minimize)
+        if (hit := _CONVEX.get(key)) is not None and hit[0]() is self.Q:
+            return hit[1]
+        idx = np.unique(self.Q.nonzero()[0])
+        if len(idx) > CONVEXITY_CHECK_MAX:
+            return True
+        sub = self.Q[idx][:, idx].toarray() * (1.0 if self.minimize else -1.0)
+        eig = np.linalg.eigvalsh((sub + sub.T) / 2)
+        convex = bool(eig.min() >= -1e-9 * max(1.0, float(np.abs(eig).max())))
+        _CONVEX[key] = (weakref.ref(self.Q), convex)
+        return convex
 
     def objective_value(self, x: np.ndarray) -> float:
         quad = 0.5 * float(x @ (self.Q @ x)) if self.Q is not None else 0.0

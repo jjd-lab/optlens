@@ -1,6 +1,9 @@
 # Changelog
 
 ## 0.0.1 (unreleased, 2026-09-30)
+- Quadratic objectives: a non-convex one goes to SCIP automatically (HiGHS returned an unexplained status), and its
+  sensitivity report says why there are no shadow prices; Gurobi no longer fails on one (it read shadow prices
+  Gurobi does not have for a non-convex QP). `ModelData.convex_objective()` checks the sense-adjusted quadratic term.
 - One way to use optlens from an agent: the MCP server now sends the method (open the model first, lead with the
   cause, every number from a solve, re-solve before recommending, `run_python` for many steps) as its instructions,
   so Codex, Cursor, Copilot, Claude Desktop and any MCP client get it with the tools. The Claude Code plugin is the

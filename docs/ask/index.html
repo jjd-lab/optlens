@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What you can ask | optlens</title>
+<meta name="description" content="The questions optlens answers about an LP, MILP or quadratic model, the tool behind each, and the model formats, solvers and limits.">
+<link rel="canonical" href="https://optlens.dev/ask/">
+<meta property="og:title" content="What you can ask | optlens">
+<meta property="og:description" content="The questions optlens answers about an LP, MILP or quadratic model, the tool behind each, and the model formats, solvers and limits.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://optlens.dev/ask/">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="../">opt<span>lens</span></a>
+  <nav><a href="../">Home</a><a href="../ask/">What you can ask</a><a href="../benchmark/">Benchmark</a><a href="https://github.com/jjd-lab/optlens">GitHub</a><a class="hide-sm" href="mailto:hello@optlens.dev">Contact</a></nav>
+</div></header>
+<article class="post"><h1 id="what-you-can-ask">What you can ask</h1>
+<p>Every question below is a tool: a <code>Session</code> method in Python, a tool of the MCP server (<code>optlens-mcp</code>, 22 tools) and
+the same in the Claude Code plugin. Ask in your own words; the agent picks the tools. Every answer comes from a solve,
+and every recommended fix is re-solved before it is offered.</p>
+<h2 id="questions-and-tools">Questions and tools</h2>
+<div class="table"><table>
+<thead>
+<tr>
+<th>you want to know</th>
+<th>for example</th>
+<th>tools</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>what the model is and means</td>
+<td>"What does this model decide, and what limits it?"</td>
+<td><code>get_model_overview</code>, <code>query_constraints</code>, <code>query_variables</code>, <code>read_model_document</code>, <code>save_model_context</code></td>
+</tr>
+<tr>
+<td>why it is infeasible</td>
+<td>"Why is <code>plan.mps</code> infeasible?"</td>
+<td><code>compute_iis</code>, <code>feasibility_relaxation</code>, <code>drop_test</code></td>
+</tr>
+<tr>
+<td>what fixes it</td>
+<td>"What is the smallest change that makes it solve? Is an input mistyped?"</td>
+<td><code>fix_menu</code>, <code>suspicious_values</code> (each flag's undo solved)</td>
+</tr>
+<tr>
+<td>what happens if...</td>
+<td>"What if the budget drops by 10 %?"</td>
+<td><code>modify_and_resolve</code>, <code>try_options</code>, <code>version_history</code></td>
+</tr>
+<tr>
+<td>how two plans differ</td>
+<td>"What changed between the old plan and this one?"</td>
+<td><code>compare_versions</code> (against the closest optimal plan)</td>
+</tr>
+<tr>
+<td>what a limit is worth, how far it can go</td>
+<td>"What is one more hour of capacity worth? How high can demand go?"</td>
+<td><code>marginal_value</code>, <code>sensitivity_report</code>, <code>attainable_limit</code></td>
+</tr>
+<tr>
+<td>why the plan doesn't do X</td>
+<td>"Why doesn't the plan use the second warehouse?"</td>
+<td><code>why_not</code></td>
+</tr>
+<tr>
+<td>how several models or scenarios compare</td>
+<td>"Which of these three scenarios costs least?"</td>
+<td><code>open_model</code>, <code>add_model</code>, <code>compare_models</code></td>
+</tr>
+<tr>
+<td>anything else, in code</td>
+<td>"Rank every capacity limit by what relaxing it would save."</td>
+<td><code>run_python</code> (optlens preloaded as <code>session</code>)</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="models">Models</h2>
+<ul>
+<li><strong>Formats:</strong> LP and MPS files; Pyomo, gurobipy and PuLP models, from the object or from the script that builds it.</li>
+<li><strong>Linear and mixed-integer models (LP, MILP):</strong> every question above.</li>
+<li><strong>Quadratic objectives (QP, MIQP):</strong> a convex QP solves on HiGHS; a mixed-integer or non-convex one goes to SCIP,
+  chosen automatically.
+  Why a model is infeasible, its smallest fixes, what-ifs, plan comparisons and marginal values work as for a linear
+  model; feasibility does not depend on the objective. <code>marginal_value</code> matters more here, since a quadratic cost
+  changes at a different rate each way: it re-solves both ways. Shadow prices are reported for a convex objective;
+  sensitivity ranges are not.</li>
+<li><strong>Not supported:</strong> quadratic constraints, indicator and other general constraints, and SOS. Such a model is
+  rejected when it loads, with the reason.</li>
+</ul>
+<h2 id="solvers">Solvers</h2>
+<div class="table"><table>
+<thead>
+<tr>
+<th>solver</th>
+<th>solves</th>
+<th>notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HiGHS</td>
+<td>LP, MILP, convex QP</td>
+<td>comes with optlens; the default; IIS for LPs</td>
+</tr>
+<tr>
+<td>SCIP</td>
+<td>LP, MILP, QP and MIQP, convex or not</td>
+<td>the <code>scip</code> extra; IIS for MIPs; stands in for HiGHS where HiGHS cannot do a step, and the result says so</td>
+</tr>
+<tr>
+<td>Gurobi</td>
+<td>LP, MILP, QP and MIQP, convex or not</td>
+<td>your own license; IIS for LPs and MIPs; a Gurobi session does every step on Gurobi</td>
+</tr>
+</tbody>
+</table></div>
+<p>Every solve has a hard time limit, and every IIS is checked: one whose constraints are feasible on their own is
+rejected and rebuilt.</p>
+<h2 id="limits">Limits</h2>
+<ul>
+<li>optlens works on a model that is already built; it does not write models.</li>
+<li>Gurobi is tested on its size-limited license only (2,000 constraints and 2,000 variables, 200 variables with a
+  quadratic objective).</li>
+<li>Sensitivity ranges hold for the solution's basis; at a degenerate solution the shadow price can differ on each side
+  of a limit, and <code>marginal_value</code> re-solves to check a change.</li>
+</ul>
+<p><a href="../benchmark/">How these were measured: the benchmark &rarr;</a></p><p><a href="../">&larr; Back to optlens</a></p></article>
+<footer class="bottom"><div class="wrap">
+  <span>optlens is open source (Apache-2.0)</span><a href="https://github.com/jjd-lab/optlens">GitHub</a><a href="mailto:hello@optlens.dev">hello@optlens.dev</a>
+</div></footer>
+</body>
+</html>

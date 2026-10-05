@@ -410,7 +410,8 @@ class GurobiBackend(Backend):
                 return SolveResult(status)
             by_name = {v.VarName: v.X for v in m.getVars()}
             res = SolveResult(status, obj=m.ObjVal, x=np.array([by_name[c] for c in md.col_names]))
-            if not md.is_mip and m.Status == GRB.OPTIMAL:
+            if not md.is_mip and m.Status == GRB.OPTIMAL and md.convex_objective():
+                # Gurobi solves a non-convex QP like a MIP and has no duals for it
                 pi = {c.ConstrName: c.Pi for c in m.getConstrs()}
                 rc = {v.VarName: v.RC for v in m.getVars()}
                 res.row_dual = np.array([pi[r] for r in md.row_names])

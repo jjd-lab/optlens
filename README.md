@@ -55,6 +55,11 @@ md = od.load("my_model.py:make_scenario")       # a named model, or a function w
 
 LP files written by Gurobi (bracketed names, which HiGHS rejects) load without gurobipy.
 
+Quadratic objectives (QP, MIQP) are supported: a convex QP solves on HiGHS, and a mixed-integer or non-convex one goes
+to SCIP automatically. Every question works as for a linear model except sensitivity ranges (and shadow prices for a
+non-convex objective). Quadratic constraints, indicator and other general constraints, and SOS
+are rejected when the model loads. The full list of questions, formats and solvers: [optlens.dev/ask](https://optlens.dev/ask/).
+
 ## Solvers
 
 HiGHS comes with the core; SCIP and Gurobi are extras. Pick one with `OPTLENS_SOLVER` (`highs`, `scip`, `gurobi`, or

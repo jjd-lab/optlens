@@ -119,6 +119,8 @@ def sensitivity(md: ModelData, time_limit: float = 60.0, backend=None) -> Sensit
     """Duals and ranges at the optimum (for a MIP, of the continuous problem left with the integers fixed). HiGHS
     computes them, or a licensed ``backend`` (Gurobi) for every step. The ranges hold for the optimal basis: at a
     degenerate optimum the shadow price can differ on each side of the current limit (marginal_value re-solves)."""
+    if not md.convex_objective():
+        return Sensitivity("non-convex quadratic objective, which has no shadow prices; marginal_value re-solves")
     bk = backend if backend is not None and backend.licensed else default_backend(md)
     base = bk.solve(md, time_limit)
     if base.status != "OPTIMAL":
