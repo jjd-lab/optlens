@@ -141,7 +141,8 @@ git clone https://github.com/jjd-lab/optlens && optlens/scripts/sandbox.sh ~/opt
 ~/optlens-try/start.sh          # log in on the first start; the questions are in ~/optlens-try/HOW-TO.md
 ```
 
-`--project PATH` puts your own model there instead. It is a separate setup, not a security sandbox (see Security
+It needs bash, Python 3.11+ and Claude Code (macOS or Linux; on Windows, WSL). `--project PATH` puts your own model
+there instead. It is a separate setup, not a security sandbox (see Security
 above); delete the folder to remove it.
 
 The same week in a clean Claude Code with the plugin (rendered from a recorded session; each tool call shows its real
