@@ -103,9 +103,10 @@ Install as above (it puts `optlens-mcp` on your PATH), then connect once; the ag
 The command must be on the PATH the agent sees; give the full path to `optlens-mcp` (for example `.venv/bin/optlens-mcp`)
 if it is not. `OPTLENS_SOLVER` (`highs`, `scip`, `gurobi` or `auto`) chooses the solver once.
 
-**Time limits.** Each tool call answers within `OPTLENS_CALL_LIMIT` seconds (at least 30): solves stop 15 s sooner,
-`run_python` calls 10 s sooner, and a tool's `time_limit` cannot go past the solve limit. Set it to what your client
-waits for one tool call; `open_model` states the limits in force, and a result cut short by one says so.
+**Time limits.** Solves stop at 45 s, so a call answers within a minute. `OPTLENS_CALL_LIMIT` (seconds, at least 30)
+is the most one tool call may take: a tool's `time_limit` may ask for up to 15 s less, and the agent asks for more only
+when a solve stopped at its limit while still improving (results say whether it was). Set it to what your client waits
+for one tool call; `open_model` states the limits in force, and a result cut short by one says so.
 
 | client | waits for a tool call | `OPTLENS_CALL_LIMIT` |
 |---|---|---|

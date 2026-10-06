@@ -52,6 +52,13 @@ run_python instead of calling tools one by one: session there has every tool as 
 variables persist between calls, and the model is loaded once. Print only what the answer needs. Versions made in
 run_python and by the other tools are separate: compare within one of them.
 
+Large MIPs and time: open_model's base solve is the probe. Proven optimal: the defaults are fine. Stopped at its
+limit: report the plan with its bound and gap, and read the note on its starting plan. If the solver improved on the
+start, a longer time_limit on the what-ifs that matter (modify_and_resolve, up to the most open_model states) can
+narrow the gap; if it found no better plan, more time is unlikely to help, so report each effect as the range its gaps
+allow. A call that runs for minutes may be moved to the background by the client: wait for its result, and never start
+another solve of the same model meanwhile (it competes for the same processors).
+
 Solvers: say which solver ran. Don't ask the user to choose up front; offer another solver only when it matters (a
 solve hit its time limit, two solvers disagree, the user must match a production solver). Gurobi is used only if the
 user has installed and licensed it; OPTLENS_SOLVER=highs|scip|gurobi chooses once.

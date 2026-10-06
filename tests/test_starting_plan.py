@@ -57,6 +57,7 @@ class TestStartingPlan(unittest.TestCase):
             r = s.solved("v0")
         self.assertEqual((r.status, r.obj), ("OPTIMAL", 150.0))
         self.assertIn("started from a plan built from the LP relaxation, integers rounded up (200, ", s.route_note)
+        self.assertIn("then solved to optimality (150)", s.route_note)  # it improved on the start: says so
 
     def test_the_routing_note_keeps_the_start(self):
         # the first solve of a large MIP races HiGHS and SCIP; its routing note must not replace the start's

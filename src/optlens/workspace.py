@@ -105,8 +105,9 @@ class CodeWorkspace:
                    CODE_WS_KEY=key.hex(), CODE_WS_DOC=self.doc_file,
                    CODE_WS_SOLVE_LIMIT=str(max(1.0, min(self.solve_limit or TIME_LIMIT,
                                                         (self.timeout or TIMEOUT) - SOLVE_MARGIN))))
-        if self.solve_limit is not None:  # a caller with a client timeout (the MCP server): tools' time_limit capped too
-            env["CODE_WS_MAX_LIMIT"] = env["CODE_WS_SOLVE_LIMIT"]
+        if self.solve_limit is not None:  # a caller with a client timeout (the MCP server): a tool's time_limit may ask
+            # for more than the default, within the call's timeout
+            env["CODE_WS_MAX_LIMIT"] = str(max(1.0, (self.timeout or TIMEOUT) - SOLVE_MARGIN))
         if self.prefer:
             env.update(CODE_WS_PREFER=self.prefer, CODE_WS_ONLY_PREFER="1" if self.only_prefer else "")
         with open(self.workdir / "worker.log", "a") as log:

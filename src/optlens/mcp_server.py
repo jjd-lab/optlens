@@ -81,47 +81,57 @@ SAVE_MODEL_CONTEXT = {
 
 DEFAULT_CALL_LIMIT = 60.0  # the per-call timeout of many MCP clients (Claude Desktop, the TypeScript SDK)
 MIN_CALL_LIMIT = 30.0
+DEFAULT_SOLVE, DEFAULT_IIS = 45.0, 40.0  # a solve and a large MIP's IIS search unless a call asks for more
 
 
-def call_limits(value: str | None = None) -> tuple[float, float, float]:
-    """(run_python's call timeout, the solve limit, a large MIP's IIS budget) for a tool call that must answer within
-    OPTLENS_CALL_LIMIT seconds (``value``, else the environment; default 60, at least 30). The Claude Code CLI waits
-    longer than 60 s for a tool call, so its users can allow slow solves minutes."""
+def call_limits(value: str | None = None) -> tuple[float, float, float, float]:
+    """(run_python's call timeout, the default solve limit, a large MIP's default IIS budget, the most a tool's
+    time_limit may ask for) for a tool call that must answer within OPTLENS_CALL_LIMIT seconds (``value``, else the
+    environment; default 60, at least 30). The defaults stay at 45 and 40 s: a call answers in under a minute, which
+    every client accepts and Claude Code does not move to the background (it does past 120 s); an agent asks for more
+    only when the solve showed progress."""
     raw = os.environ.get("OPTLENS_CALL_LIMIT", "") if value is None else value
     try:
         limit = float(raw) if raw.strip() else DEFAULT_CALL_LIMIT
     except ValueError:
         limit = DEFAULT_CALL_LIMIT
     limit = max(MIN_CALL_LIMIT, limit) if limit == limit else DEFAULT_CALL_LIMIT  # NaN reads as unset
-    return limit - 10.0, limit - 15.0, limit - 20.0
+    return limit - 10.0, min(DEFAULT_SOLVE, limit - 15.0), min(DEFAULT_IIS, limit - 20.0), limit - 15.0
 
 
-# per run_python call; per solve; a large MIP's IIS search (the result says when it stopped short: "reduced")
-RUN_PYTHON_LIMIT, CALL_SOLVE_LIMIT, CALL_IIS_BUDGET = call_limits()
+# per run_python call; per solve by default; a large MIP's IIS search (the result says when it stopped short:
+# "reduced"); the most a tool's time_limit may ask for
+RUN_PYTHON_LIMIT, CALL_SOLVE_LIMIT, CALL_IIS_BUDGET, CALL_MAX_SOLVE = call_limits()
 CALL_LIMIT = RUN_PYTHON_LIMIT + 10.0
+LONGER = ("modify_and_resolve",)  # tools whose time_limit only this server offers (the bench's agents do not see it)
 
 
 def limits_line() -> str:
     """The time limits as open_model states them, so the agent (and the user it tells) knows them from the start."""
-    return (f"Time limits: each tool call answers within {CALL_LIMIT:.0f} s (OPTLENS_CALL_LIMIT); solves stop at "
-            f"{CALL_SOLVE_LIMIT:.0f} s, run_python calls at {RUN_PYTHON_LIMIT:.0f} s, and a tool's time_limit can be at "
-            f"most {CALL_SOLVE_LIMIT:.0f} s. A result cut short by a limit says so. If this client waits longer for a "
-            "tool call, the user can set OPTLENS_CALL_LIMIT higher and restart the server; if a call times out "
-            "in the client, lower.")
+    return (f"Time limits: solves stop at {CALL_SOLVE_LIMIT:.0f} s unless a tool's time_limit asks for more, up to "
+            f"{CALL_MAX_SOLVE:.0f} s; each tool call answers within {CALL_LIMIT:.0f} s (OPTLENS_CALL_LIMIT), "
+            f"run_python calls within {RUN_PYTHON_LIMIT:.0f} s. A result cut short by a limit says so. If a call times "
+            "out in the client, the user should lower OPTLENS_CALL_LIMIT to the client's limit and restart the server.")
 
 
 def with_limits(tool: dict) -> dict:
-    """A tool's schema with its time_limit text saying this server's limits (the session's own say 60 s)."""
-    props = tool["input_schema"].get("properties", {})
+    """A tool's schema with its time_limit text saying this server's limits (the session's own say 60 s), and a
+    time_limit added to the tools in LONGER."""
+    props = dict(tool["input_schema"].get("properties", {}))
+    if tool["name"] in LONGER:
+        props["time_limit"] = {"type": "number", "description": "Seconds for the solve; default 60."}
     if "time_limit" not in props:
         return tool
     text = props["time_limit"]["description"]
-    text = text.replace("default 60.", f"default and most {CALL_SOLVE_LIMIT:.0f} here.")
+    most = f"at most {CALL_MAX_SOLVE:.0f} here. Ask for more only when an earlier solve of this model stopped at its " \
+           "limit while the solver was still improving."
+    text = text.replace("default 60.", f"default {CALL_SOLVE_LIMIT:.0f}, {most}")
     text = text.replace("default 300, or 60 on a MIP over 500 rows.",
-                        f"default {CALL_SOLVE_LIMIT:.0f}, or {CALL_IIS_BUDGET:.0f} on a MIP over 500 rows; at most "
-                        f"{CALL_SOLVE_LIMIT:.0f} here.")
+                        f"default {CALL_SOLVE_LIMIT:.0f}, or {CALL_IIS_BUDGET:.0f} on a MIP over 500 rows; {most}")
     schema = {**tool["input_schema"], "properties": {**props, "time_limit": {**props["time_limit"], "description": text}}}
     return {**tool, "input_schema": schema}
+
+
 RUN_PYTHON = {
     "name": "run_python",
     "description": tool_description(RUN_PYTHON_LIMIT, note=(
@@ -177,7 +187,7 @@ class State:
         prefer, only = preferred_solver(solver)
         self.session = Session({"v0": Version(md, None, "original model")}, str(doc) if doc else None,
                                prefer=prefer, only_prefer=only, time_limit=CALL_SOLVE_LIMIT,
-                               large_mip_iis_budget=CALL_IIS_BUDGET, max_time_limit=CALL_SOLVE_LIMIT)
+                               large_mip_iis_budget=CALL_IIS_BUDGET, max_time_limit=CALL_MAX_SOLVE)
         self.name = p.name
         self.md, self.inv = md, inventory(md)
         self.model_spec, self.doc = f"{p}{sep}{attr}", doc

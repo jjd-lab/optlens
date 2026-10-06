@@ -53,22 +53,28 @@ class TestMcpServer(unittest.TestCase):
     def test_the_call_limit_sets_every_limit_together(self):
         from optlens.mcp_server import call_limits
 
-        self.assertEqual(call_limits(""), (50.0, 45.0, 40.0))  # within the 60 s of Claude Desktop and similar clients
-        self.assertEqual(call_limits("300"), (290.0, 285.0, 280.0))  # the Claude Code CLI waits longer
-        self.assertEqual(call_limits("5"), (20.0, 15.0, 10.0))  # at least 30 s
+        # (run_python call, default solve, default large-MIP IIS, the most a time_limit may ask for)
+        self.assertEqual(call_limits(""), (50.0, 45.0, 40.0, 45.0))  # within the 60 s of Claude Desktop and others
+        self.assertEqual(call_limits("300"), (290.0, 45.0, 40.0, 285.0))  # the defaults stay; time_limit may ask more
+        self.assertEqual(call_limits("5"), (20.0, 15.0, 10.0, 15.0))  # at least 30 s
         for bad in ("five minutes", "nan"):
-            self.assertEqual(call_limits(bad), (50.0, 45.0, 40.0))
+            self.assertEqual(call_limits(bad), (50.0, 45.0, 40.0, 45.0))
         with mock.patch.dict(os.environ, {"OPTLENS_CALL_LIMIT": "120"}):
-            self.assertEqual(call_limits(), (110.0, 105.0, 100.0))
+            self.assertEqual(call_limits(), (110.0, 45.0, 40.0, 105.0))
 
     def test_the_agent_is_told_the_limits(self):
         [tools, opened] = self.run_client([lambda c: c.list_tools(),
                                            lambda c: c.call_tool("open_model", {"path": str(MODEL)})])
         schemas = {t.name: t.input_schema for t in tools.tools}
-        self.assertIn("default and most 45 here.", schemas["fix_menu"]["properties"]["time_limit"]["description"])
+        self.assertIn("default 45, at most 45 here.", schemas["fix_menu"]["properties"]["time_limit"]["description"])
         self.assertIn("at most 45 here.", schemas["compute_iis"]["properties"]["time_limit"]["description"])
-        self.assertIn("each tool call answers within 60 s (OPTLENS_CALL_LIMIT); solves stop at 45 s",
-                      opened.content[0].text)
+        # the what-if tool takes a time_limit through this server only (the bench's agents see the session's schema)
+        self.assertIn("default 45, at most 45 here.",
+                      schemas["modify_and_resolve"]["properties"]["time_limit"]["description"])
+        from optlens.session import TOOLS
+        self.assertNotIn("time_limit", next(t for t in TOOLS if t["name"] == "modify_and_resolve")["input_schema"]["properties"])
+        self.assertIn("solves stop at 45 s unless a tool's time_limit asks for more, up to 45 s; each tool call answers "
+                      "within 60 s (OPTLENS_CALL_LIMIT)", opened.content[0].text)
 
     def test_run_python_keeps_variables_and_has_the_engine(self):
         from optlens.mcp_server import State

@@ -1,6 +1,12 @@
 # Changelog
 
 ## 0.0.1 (unreleased, 2026-09-30)
+- The default solve limit stays 45 s whatever `OPTLENS_CALL_LIMIT` says; that is now the most a tool's `time_limit` may
+  ask for. In a plugin trial a 300 s default made `open_model` run past 2 minutes, Claude Code moved it to the
+  background, and the agent started its own solve of the same model meanwhile. `modify_and_resolve` takes a
+  `time_limit` through the MCP server. A solve from a starting plan says whether the solver improved on it; the
+  instructions read the base solve as the probe (improving: a longer `time_limit` may help; not: report ranges) and
+  say to wait for a call moved to the background instead of solving the model another way.
 - A MIP of 5,000 rows or more starts from a plan built from its LP relaxation (`optlens.starting_plan`): the
   integers the LP uses rounded up and the LP solved with them fixed, else the integers it leaves whole kept and the
   rest solved as a small MIP. It takes at most a fifth of the solve limit (the solve gets the rest); the result says

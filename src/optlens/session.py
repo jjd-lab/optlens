@@ -401,8 +401,8 @@ class Session:
     # of handing the model to HiGHS or SCIP, and no other solver may be passed in
     only_prefer: bool = False
     large_mip_iis_budget: float = LARGE_MIP_IIS_BUDGET  # the MCP server lowers it to fit its client's call timeout
-    # the most any search or a tool's time_limit may take (the MCP server sets it inside its client's call timeout, so
-    # a call answers instead of being cut off); None: no cap
+    # the most a tool's time_limit may ask for (the MCP server sets it inside its client's call timeout, so a call
+    # answers instead of being cut off); engine defaults then stay within time_limit. None: no cap
     max_time_limit: float | None = None
     # Tools may be called from several threads at once (the plugin's analysts share one server): new version ids are
     # allocated under this lock; solves run outside it, in their own processes.
@@ -427,15 +427,18 @@ class Session:
         return f"{out}\n[{time.time() - t0:.1f} s]" + (f"\n[{note}]" if note else ""), err
 
     def _limit(self, asked: float | None, default: float) -> float:
-        """The seconds a search may take: what the call asked for, else the default, within max_time_limit. A cap on
-        what the call asked for is said in the result."""
-        seconds = asked or default
-        if self.max_time_limit is None or seconds <= self.max_time_limit:
-            return seconds
-        if asked:
-            note = (f"time_limit {asked:g} s lowered to {self.max_time_limit:g} s, the most a tool call may take here "
-                    "(the client's tool-call timeout; OPTLENS_CALL_LIMIT raises it where the client waits longer)")
-            self.route_note = f"{self.route_note}; {note}" if self.route_note else note
+        """The seconds a search may take. With a ceiling (max_time_limit, set by the MCP server): an engine default is
+        kept within the session's solve limit, and what a call asked for within the ceiling, said in the result when
+        lowered. Without one (bench, optchat): what the call asked for, else the default."""
+        if self.max_time_limit is None:
+            return asked or default
+        if not asked:
+            return min(default, self.time_limit)
+        if asked <= self.max_time_limit:
+            return asked
+        note = (f"time_limit {asked:g} s lowered to {self.max_time_limit:g} s, the most a tool call may take here "
+                "(OPTLENS_CALL_LIMIT, which must stay within the client's tool-call timeout)")
+        self.route_note = f"{self.route_note}; {note}" if self.route_note else note
         return self.max_time_limit
 
     def _new_version(self, md, base: str | None, description: str, solver: str | None = None,
@@ -614,19 +617,31 @@ class Session:
         """The routing note, before what the solve itself noted (a starting plan)."""
         self.route_note = f"{note}; {self.route_note}" if self.route_note else note
 
-    def _started(self, md: od.ModelData, solve) -> od.SolveResult:
-        """``solve(time_limit, start)`` for one model. A MIP of START_MIN_ROWS or more first gets a starting plan built
-        from its LP relaxation (od.starting_plan, within START_SHARE of the limit; the solve gets the rest) and says so;
-        the start is kept if the solver returns nothing better (a solve killed past its limit loses its plan)."""
+    def _started(self, md: od.ModelData, solve, limit: float | None = None) -> od.SolveResult:
+        """``solve(time_limit, start)`` for one model within ``limit`` (default: the session's). A MIP of
+        START_MIN_ROWS or more first gets a starting plan built from its LP relaxation (od.starting_plan, within
+        START_SHARE of the limit; the solve gets the rest), and the note says whether the solver improved on it, which
+        tells an agent whether a longer time_limit could help; the start is kept if the solver returns nothing better
+        (a solve killed past its limit loses its plan)."""
+        limit = limit or self.time_limit
         if not (md.is_mip and md.num_rows >= START_MIN_ROWS):
-            return solve(self.time_limit, None)
+            return solve(limit, None)
         t0 = time.time()
         lp_backend = od.BACKENDS[self.prefer] if self.strict() else od.BACKENDS["highs"]
-        plan = od.starting_plan(md, lp_backend, START_SHARE * self.time_limit)
-        r = solve(max(1.0, self.time_limit - (time.time() - t0)), None if plan is None else plan.x)
+        plan = od.starting_plan(md, lp_backend, START_SHARE * limit)
+        t1 = time.time()
+        r = solve(max(1.0, limit - (t1 - t0)), None if plan is None else plan.x)
         if plan is None:
             return r
-        note = f"started from a plan built from the {plan.how} ({plan.obj:,.6g}, {plan.seconds:.1f} s)"
+        better = r.obj is not None and abs(r.obj - plan.obj) > 1e-9 * max(1.0, abs(plan.obj)) and (
+            r.obj < plan.obj if md.minimize else r.obj > plan.obj)
+        if r.status == "OPTIMAL":
+            then = f"then solved to optimality{f' ({r.obj:,.6g})' if better else ', keeping it'}"
+        elif better:
+            then = f"the solver improved it to {r.obj:,.6g} in {time.time() - t1:.0f} s"
+        else:
+            then = f"the solver found no better plan in {time.time() - t1:.0f} s"
+        note = f"started from a plan built from the {plan.how} ({plan.obj:,.6g}, {plan.seconds:.1f} s); {then}"
         self.route_note = f"{self.route_note}; {note}" if self.route_note else note
         worse = r.obj is None or (r.obj > plan.obj if md.minimize else r.obj < plan.obj)
         if r.status in ("TIME_LIMIT", "OTHER") and worse:
@@ -638,14 +653,15 @@ class Session:
             raise KeyError(f"unknown version {vid!r}; existing: {', '.join(self.versions)}")
         return self.versions[vid]
 
-    def solved(self, vid: str) -> od.SolveResult:
+    def solved(self, vid: str, time_limit: float | None = None) -> od.SolveResult:
+        """The version's solve, done once; ``time_limit`` for that first solve (default: the session's)."""
         v = self.get(vid)
         if v.result is None:
             if v.solver is None and self.route is None:
                 v.result = self._route_first(v)
             else:
                 bk = self._bk(v.md, v.solver)
-                v.result = self._started(v.md, lambda t, s: bk.solve(v.md, t, start=s))
+                v.result = self._started(v.md, lambda t, s: bk.solve(v.md, t, start=s), time_limit)
         return v.result
 
     def iis(self, vid: str, solver: str | None = None, time_limit: float | None = None) -> tuple[list[str], od.IIS]:
@@ -907,10 +923,11 @@ class Session:
         return md
 
     def modify_and_resolve(self, base_version="v0", description="", changes=(), explain_conflict=False,
-                           solver=None) -> str:
-        return self._modify(base_version, description, changes, explain_conflict, solver)[1]
+                           solver=None, time_limit=None) -> str:
+        return self._modify(base_version, description, changes, explain_conflict, solver, time_limit)[1]
 
-    def _modify(self, base_version, description, changes, explain_conflict=False, solver=None) -> tuple[str, str]:
+    def _modify(self, base_version, description, changes, explain_conflict=False, solver=None,
+                time_limit=None) -> tuple[str, str]:
         """(the new version's id, the tool text)."""
         base_md = self.get(base_version).md  # once: an edited base may be rebuilt on each access
         md = self._apply(base_md, changes)
@@ -918,7 +935,7 @@ class Session:
             return base_version, (f"no change: the {len(changes)} changes leave {base_version} as it is; no version "
                                   f"created, nothing solved")
         vid = self._new_version(md, base_version, description, solver, changes=changes)
-        r = self.solved(vid)
+        r = self.solved(vid, self._limit(time_limit, self.time_limit) if time_limit else None)
         lines = [f"created {vid} from {base_version} ({len(changes)} changes): status {r.status}{_proof(r)}"]
         if self.has_solution(vid):
             lines.append(f"objective: {_fmt(r.obj)}")
