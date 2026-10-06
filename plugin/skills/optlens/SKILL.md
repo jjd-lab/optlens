@@ -16,7 +16,9 @@ Load the tools before using them: a client may list them as deferred, with names
 client lists, which carry a prefix (in Claude Code mcp__plugin_optlens_optlens__open_model, or mcp__optlens__open_model
 when the server was added by hand), at least open_model, the tools you plan to call and run_python, whose description
 lists every engine method with its arguments and what a solve returns. Then call them as described instead of
-probing the API.
+probing the API. Every tool answers within the server's time limit (open_model states it); if the client stops a call
+first ("timed out"), the client waits less than OPTLENS_CALL_LIMIT: tell the user to set OPTLENS_CALL_LIMIT to the
+client's limit (60 for most clients) and restart the server, rather than solving the model another way.
 
 Model context (the shared vocabulary): open_model shows the model's saved context, what each constraint and variable
 family means and the documented result. Use those meanings and names in every answer. If it says there is no saved

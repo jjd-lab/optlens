@@ -2,6 +2,7 @@
   "mcpServers": {
     "optlens": {
       "command": "optlens-mcp",
+      "timeout": 600000,
       "env": {"OPTLENS_SOLVER": "${OPTLENS_SOLVER:-auto}", "OPTLENS_CALL_LIMIT": "${OPTLENS_CALL_LIMIT:-300}"}
     }
   }

@@ -11,7 +11,10 @@
   15 s less, a large MIP's IIS search 20 s less, `run_python` calls 10 s less, and `run_python`'s session solves inside
   that. The Claude Code CLI waits longer than 60 s for a tool call, so its users can give slow MIP solves minutes; the
   plugin passes the variable through. The 60 s default keeps clients that stop at 60 s (Claude Desktop) working.
-  The plugin's default is 300 (Claude Code waits about 28 hours for a tool call). A tool's `time_limit`, and the
+  The plugin's default is 300, and its server's `timeout` is 10 minutes: Claude Code stops a tool call at
+  `MCP_TOOL_TIMEOUT`, which an environment may set to 60 s (a cloud session did, and `open_model` timed out while its
+  base solve ran); the server's own `timeout` overrides it. The instructions tell an agent whose call timed out to
+  have the user lower `OPTLENS_CALL_LIMIT` rather than solve the model another way. A tool's `time_limit`, and the
   engine's own search budgets (an LP's IIS search had 300 s), stay within the solve limit, and a lowered
   `time_limit` is said in the result; `open_model` states the limits and the tools' schemas give the real default.
 - The server's instructions and the plugin's skill say to load the tools before the first call: Claude Code defers

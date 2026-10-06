@@ -106,7 +106,8 @@ def limits_line() -> str:
     return (f"Time limits: each tool call answers within {CALL_LIMIT:.0f} s (OPTLENS_CALL_LIMIT); solves stop at "
             f"{CALL_SOLVE_LIMIT:.0f} s, run_python calls at {RUN_PYTHON_LIMIT:.0f} s, and a tool's time_limit can be at "
             f"most {CALL_SOLVE_LIMIT:.0f} s. A result cut short by a limit says so. If this client waits longer for a "
-            "tool call (the Claude Code CLI does), the user can set OPTLENS_CALL_LIMIT higher and restart the server.")
+            "tool call, the user can set OPTLENS_CALL_LIMIT higher and restart the server; if a call times out "
+            "in the client, lower.")
 
 
 def with_limits(tool: dict) -> dict:
