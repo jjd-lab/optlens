@@ -8,7 +8,7 @@ import multiprocessing as mp
 import os
 import tempfile
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import highspy
 import numpy as np
@@ -173,7 +173,7 @@ def _with_deadline(fn, args, seconds: float):
     return value
 
 
-def race(md: ModelData, backends: list, time_limit: float = 60.0):
+def race(md: ModelData, backends: list, time_limit: float = 60.0, start: np.ndarray | None = None):
     """Solve ``md`` with several backends at once; return (winner, SolveResult) for the first conclusive result
     (OPTIMAL, INFEASIBLE, UNBOUNDED, INF_OR_UNBD) and kill the others. When none is conclusive within
     ``time_limit`` (+ grace), returns the first backend with its best result or TIME_LIMIT."""
@@ -188,7 +188,7 @@ def race(md: ModelData, backends: list, time_limit: float = 60.0):
             w = _IDLE.pop() if _IDLE else None
         if w is None or not w.proc.is_alive():
             w = _Worker()
-        w.conn.send((b._solve, (md, time_limit)))
+        w.conn.send((b._solve, (md, time_limit, start)))
         workers[w.conn] = (b, w)
     deadline = _time.time() + time_limit + _GRACE
     winner, fallback = None, None
@@ -228,14 +228,15 @@ class Backend:
     # answer from another solver is not the one asked for. Open-source backends may stand in for each other.
     licensed = False
 
-    def solve(self, md: ModelData, time_limit: float = 60.0) -> SolveResult:
+    def solve(self, md: ModelData, time_limit: float = 60.0, start: np.ndarray | None = None) -> SolveResult:
         """Solve ``md``. A solve still running ``_GRACE`` seconds past ``time_limit`` is killed and
         reported as TIME_LIMIT. Crossed bounds (lower > upper) are infeasible without a solve: solvers
-        reject them as input errors (SCIP) or read them differently."""
+        reject them as input errors (SCIP) or read them differently. ``start``: a plan (a value per column) the
+        solver begins from, for a MIP (see starting_plan); a solver that cannot use it ignores it."""
         if crossed_bounds(md) != ([], []):
             return SolveResult("INFEASIBLE")
         try:
-            return _with_deadline(self._solve, (md, time_limit), time_limit + _GRACE)
+            return _with_deadline(self._solve, (md, time_limit, start), time_limit + _GRACE)
         except _TimedOut:
             return SolveResult("TIME_LIMIT")
 
@@ -249,7 +250,7 @@ class Backend:
         except _TimedOut as e:
             raise IISNotSupported(f"{self.name} IIS exceeded {time_limit:.0f}s") from e
 
-    def _solve(self, md: ModelData, time_limit: float) -> SolveResult:
+    def _solve(self, md: ModelData, time_limit: float, start=None) -> SolveResult:
         raise NotImplementedError
 
     def _iis(self, md: ModelData, time_limit: float) -> IIS:
@@ -315,8 +316,10 @@ class HiGHSBackend(Backend):
         ray = np.asarray(ray)
         return np.flatnonzero(np.abs(ray) > 1e-9 * max(1.0, float(np.abs(ray).max()))).tolist()
 
-    def _solve(self, md, time_limit):
+    def _solve(self, md, time_limit, start=None):
         h = self._highs(md, time_limit)
+        if start is not None and md.is_mip:
+            h.setSolution(md.num_cols, np.arange(md.num_cols, dtype=np.int32), np.asarray(start, float))
         h.run()
         status = self._STATUS.get(h.getModelStatus(), "OTHER")
         if h.getInfo().primal_solution_status != 2:  # 2 = feasible
@@ -357,9 +360,14 @@ class SCIPBackend(Backend):
         m.setParam("limits/time", float(time_limit))
         return m
 
-    def _solve(self, md, time_limit):
+    def _solve(self, md, time_limit, start=None):
         def run(path):
             m = self._model(path, time_limit)
+            if start is not None and md.is_mip:
+                sol, at = m.createSol(), {c: j for j, c in enumerate(md.col_names)}
+                for v in m.getVars():
+                    m.setSolVal(sol, v, float(start[at[v.name]]))
+                m.addSol(sol, free=True)
             m.optimize()
             status = self._STATUS.get(m.getStatus(), "OTHER")
             if m.getNSols() == 0:
@@ -409,13 +417,17 @@ class GurobiBackend(Backend):
                     raise
         return _with_mps(md, run)
 
-    def _solve(self, md, time_limit):
+    def _solve(self, md, time_limit, start=None):
         from gurobipy import GRB
 
         status_map = {GRB.OPTIMAL: "OPTIMAL", GRB.INFEASIBLE: "INFEASIBLE", GRB.UNBOUNDED: "UNBOUNDED",
                       GRB.INF_OR_UNBD: "INF_OR_UNBD", GRB.TIME_LIMIT: "TIME_LIMIT"}
 
         def body(m):
+            if start is not None and md.is_mip:
+                vs = m.getVars()
+                at = {c: j for j, c in enumerate(md.col_names)}
+                m.setAttr("Start", vs, [float(start[at[v.VarName]]) for v in vs])
             m.optimize()
             status = status_map.get(m.Status, "OTHER")
             if m.SolCount == 0:
@@ -472,3 +484,49 @@ class GurobiBackend(Backend):
 
 
 BACKENDS = {b.name: b for b in (HiGHSBackend(), SCIPBackend(), GurobiBackend())}
+
+
+@dataclass
+class StartingPlan:
+    x: np.ndarray
+    obj: float
+    how: str
+    seconds: float
+
+
+def starting_plan(md: ModelData, backend: "Backend", budget: float) -> StartingPlan | None:
+    """A feasible plan for the MIP ``md`` built from its LP relaxation within ``budget`` seconds, for a solver to start
+    from; None when none is found in time. On large MIPs the solvers can spend their whole limit without a usable plan
+    (M08: a 68 % gap at 45 and 300 s where this gives 3 % in 4 s). Two tries:
+    - rounded: every integer the LP uses rounded up (a 0/1 used at all becomes 1), the LP solved with them fixed. Works
+      when a 1 adds capacity (open a site, start a run);
+    - repaired: the integers the LP leaves whole kept, the rest solved as a small MIP. For 0/1s that use something up
+      or exclude each other (assignments, at most k)."""
+    import time
+
+    t0 = time.time()
+
+    def left() -> float:
+        return budget - (time.time() - t0)
+
+    j = np.flatnonzero(md.is_int)
+    as_lp = replace(md, is_int=np.zeros(md.num_cols, bool))
+    lp = backend.solve(as_lp, max(1.0, left()))
+    if lp.status != "OPTIMAL" or left() <= 0:
+        return None
+    v = lp.x[j]
+    rounded = np.clip(np.ceil(v - 1e-6), md.col_lb[j], md.col_ub[j])
+    whole = np.abs(v - np.round(v)) < 1e-6
+    tries = (("LP relaxation, integers rounded up", rounded, np.ones(len(j), bool), False),
+             ("LP relaxation, whole values kept, the rest solved", np.round(v), whole, True))
+    for how, values, fix, mip in tries:
+        if left() <= 1:
+            return None
+        lb, ub = md.col_lb.copy(), md.col_ub.copy()
+        lb[j[fix]] = ub[j[fix]] = values[fix]
+        m = replace(md, col_lb=lb, col_ub=ub, is_int=md.is_int if mip else np.zeros(md.num_cols, bool))
+        r = backend.solve(m, max(1.0, left()))
+        if r.x is not None and r.status in ("OPTIMAL", "TIME_LIMIT"):
+            return StartingPlan(r.x, r.obj, how, round(time.time() - t0, 1))
+    return None
+

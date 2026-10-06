@@ -1,6 +1,12 @@
 # Changelog
 
 ## 0.0.1 (unreleased, 2026-09-30)
+- A MIP of 5,000 rows or more starts from a plan built from its LP relaxation (`optlens.starting_plan`): the
+  integers the LP uses rounded up and the LP solved with them fixed, else the integers it leaves whole kept and the
+  rest solved as a small MIP. It takes at most a fifth of the solve limit (the solve gets the rest); the result says
+  when a start was used, and keeps the start when the solver returns nothing better. On a 24k-row setup-run MILP the
+  solvers' own plans stayed at a 68 % gap for 300 s; from the start the gap is 3 % at 45 s (M08, M09). Backends take
+  `start=` (HiGHS, SCIP, Gurobi).
 - `OPTLENS_CALL_LIMIT` (seconds per MCP tool call, default 60, at least 30) sets the server's limits together: solves
   15 s less, a large MIP's IIS search 20 s less, `run_python` calls 10 s less, and `run_python`'s session solves inside
   that. The Claude Code CLI waits longer than 60 s for a tool call, so its users can give slow MIP solves minutes; the

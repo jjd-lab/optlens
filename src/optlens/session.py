@@ -42,6 +42,8 @@ DEFAULT_SOLVER = "highs"  # default solver: 5-20x faster than SCIP on the large 
 MAX_ATTAINABLE = 10
 
 
+START_MIN_ROWS = 5_000   # a MIP this large solves from a starting plan (M08: its own plans can stay far off for minutes)
+START_SHARE = 0.2         # the share of a solve's time limit the starting plan may take; the solve gets the rest
 RACE = ("highs", "scip")  # solvers raced on a MIP's first solve
 RACE_MIN_SIZE = 20_000   # rows x columns below which a MIP is not raced (every solve takes milliseconds)
 RACE_MAX_NNZ = 1_000_000  # above this a MIP goes to HiGHS without a race: SCIP did not finish the 279k- and 837k-row
@@ -568,9 +570,9 @@ class Session:
         fallback = ""
         if self.prefer:
             try:
-                r = od.BACKENDS[self.prefer].solve(md, self.time_limit)
+                r = self._started(md, lambda t, s: od.BACKENDS[self.prefer].solve(md, t, start=s))
                 self.route = self.prefer
-                self.route_note = f"solver for this model: {self.prefer} (preferred); pass solver to override"
+                self._route_note_first(f"solver for this model: {self.prefer} (preferred); pass solver to override")
                 return r
             except (od.LicenseLimit, od.UnsupportedModel, ImportError) as e:
                 if self.strict():
@@ -594,12 +596,42 @@ class Session:
             self.route, why = "highs", f"large MIP ({md.A.nnz:,} nonzeros): HiGHS, without a race"
         else:
             t0 = time.time()
-            b, r = od.race(md, [od.BACKENDS[n] for n in RACE], self.time_limit)
+            won = []
+
+            def raced(t, s):
+                b, r = od.race(md, [od.BACKENDS[n] for n in RACE], t, start=s)
+                won.append(b)
+                return r
+            r = self._started(md, raced)
+            b = won[0]
             self.route, why = b.name, f"finished first when {' and '.join(RACE)} raced on this model ({time.time() - t0:.1f} s)"
-            self.route_note = f"solver for this model: {self.route} ({why}); pass solver to override"
+            self._route_note_first(f"solver for this model: {self.route} ({why}); pass solver to override")
             return r
         self.route_note = f"solver for this model: {self.route} ({why}); pass solver to override"
-        return od.BACKENDS[self.route].solve(md, self.time_limit)
+        return self._started(md, lambda t, s: od.BACKENDS[self.route].solve(md, t, start=s))
+
+    def _route_note_first(self, note: str) -> None:
+        """The routing note, before what the solve itself noted (a starting plan)."""
+        self.route_note = f"{note}; {self.route_note}" if self.route_note else note
+
+    def _started(self, md: od.ModelData, solve) -> od.SolveResult:
+        """``solve(time_limit, start)`` for one model. A MIP of START_MIN_ROWS or more first gets a starting plan built
+        from its LP relaxation (od.starting_plan, within START_SHARE of the limit; the solve gets the rest) and says so;
+        the start is kept if the solver returns nothing better (a solve killed past its limit loses its plan)."""
+        if not (md.is_mip and md.num_rows >= START_MIN_ROWS):
+            return solve(self.time_limit, None)
+        t0 = time.time()
+        lp_backend = od.BACKENDS[self.prefer] if self.strict() else od.BACKENDS["highs"]
+        plan = od.starting_plan(md, lp_backend, START_SHARE * self.time_limit)
+        r = solve(max(1.0, self.time_limit - (time.time() - t0)), None if plan is None else plan.x)
+        if plan is None:
+            return r
+        note = f"started from a plan built from the {plan.how} ({plan.obj:,.6g}, {plan.seconds:.1f} s)"
+        self.route_note = f"{self.route_note}; {note}" if self.route_note else note
+        worse = r.obj is None or (r.obj > plan.obj if md.minimize else r.obj < plan.obj)
+        if r.status in ("TIME_LIMIT", "OTHER") and worse:
+            return od.SolveResult("TIME_LIMIT", obj=plan.obj, x=plan.x, bound=r.bound)
+        return r
 
     def get(self, vid: str) -> Version:
         if vid not in self.versions:
@@ -612,7 +644,8 @@ class Session:
             if v.solver is None and self.route is None:
                 v.result = self._route_first(v)
             else:
-                v.result = self._bk(v.md, v.solver).solve(v.md, self.time_limit)
+                bk = self._bk(v.md, v.solver)
+                v.result = self._started(v.md, lambda t, s: bk.solve(v.md, t, start=s))
         return v.result
 
     def iis(self, vid: str, solver: str | None = None, time_limit: float | None = None) -> tuple[list[str], od.IIS]:
