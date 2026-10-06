@@ -74,8 +74,8 @@ Gurobi, each model goes to HiGHS or SCIP (a larger MIP's first solve races both)
   step is handed to another solver. If you chose Gurobi and it cannot run a model (not installed, or over the
   size-limited license), the tool stops and says so instead of switching. Under `auto` it uses Gurobi when gurobipy
   is installed and falls back to HiGHS or SCIP for a model Gurobi cannot run, and says so.
-- **HiGHS and SCIP stand in for each other** where only one can do a step (HiGHS has no MIP IIS; SCIP does), and the
-  result names the solver that did it.
+- **HiGHS and SCIP stand in for each other** where only one can do a step (HiGHS has no MIP IIS; SCIP does), or
+  when one gives no verdict within its limit (the other tries once), and the result names the solver that did it.
 - **Every IIS is checked.** A solver's IIS whose constraints are feasible on their own is rejected and rebuilt by
   removing constraints one at a time on the same solver. This guards against a known gurobipy 13.0.3 bug: `computeIIS` leaves out a
   one-variable row on a binary whose fractional limit rounds it to 0 (`160 open <= 100` with `open >= 1` returns

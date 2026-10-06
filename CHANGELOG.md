@@ -1,6 +1,23 @@
 # Changelog
 
 ## 0.0.1 (unreleased, 2026-09-30)
+- Try it without touching your own setup: `scripts/sandbox.sh DIR` builds a clean Claude Code with the plugin in one
+  folder (its own venv from GitHub, its own Claude config, a project, `start.sh`), by default with the hotel pack's
+  new `examples/try_week` (a week whose data load typed one group target as 1,200 for 120) and five questions.
+- The plugin's tools and `run_python` share versions and solves: a version a tool made is in `run_python`'s `session`
+  with its solve, and one made there is in the tools. The server saves the open model's versions to
+  `.optlens/sessions/` and restores them when the same model (same numbers) is opened again, so a resumed conversation
+  keeps its scenarios; versions made on earlier data of the model are listed, not restored.
+- A solve with no verdict (no plan, and not proven infeasible or unbounded) is tried once on the other open-source
+  solver within the call's time, which then serves that version: HiGHS ran 120 s without deciding an infeasible
+  4.7k-row blending LP that SCIP decides in 5 s. An IIS cut short at more than 200 rows points to
+  `feasibility_relaxation`.
+- `suspicious_values` flags an objective cost an order of magnitude off its group's other costs (a freight of 0.0084
+  among 0.6-3.2), one flag per value however many columns carry it.
+- `run_python`'s description names the result fields (`session.solved(v)`: `.status`, `.obj`, `.bound`, `.gap`, `.x`,
+  duals), `md.lp_relaxation()` and that a model is frozen; the skill keeps a MIP effect to its proven range (an LP
+  relaxation's change is only an indication). A model that imports a missing package says which Python to install it
+  into.
 - `run_python`'s worker starts from the server's solve of the original model instead of solving it again (in E62 a
   90 s what-if after the worker's own 45 s base solve overran the 100 s call), and its `time_limit` may ask for up to
   15 s less than the call. Thousands of `set_rhs` changes apply 28x faster: a check compared the row count with `is not`
