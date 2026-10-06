@@ -1,6 +1,5 @@
 {
   "name": "optlens",
-  "version": "0.0.1",
   "description": "Debug and explain LP/MILP optimization models: why a model is infeasible, what fixes it, what-if and why-not questions, sensitivity. Solver-agnostic (HiGHS, SCIP, or your own Gurobi license).",
   "author": {
     "name": "Jessica Dong",

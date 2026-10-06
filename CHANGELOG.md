@@ -1,6 +1,18 @@
 # Changelog
 
 ## 0.0.1 (unreleased, 2026-09-30)
+- Found in a trial on a 53k-row MILP (2,470 binaries) that no solver finishes in minutes (2026-10-05):
+  - A MIP result carries the solver's bound (`SolveResult.bound`, `.gap`; HiGHS, SCIP and Gurobi). A plan not proven
+    optimal is reported with its bound and gap, and an objective change between two such plans with the range the
+    optimal change must lie in: a what-if difference smaller than the solvers' uncertainty no longer reads as a
+    result. A time limit without a plan says it is not proof that none exists (`try_options` printed the right fix
+    as a bare TIME_LIMIT next to worse fixes with objectives).
+  - `run_python`'s session solves within the call's timeout (the call timeout less 10 s, at most the usual 60 s):
+    it solved for 60 s inside a 50 s call, so every MIP solve that ran to its limit restarted the process.
+  - `fix_menu` returns within its time limit: the drop-family screen gets a third of it and the relaxations, now
+    all in parallel with the unrestricted one, the rest (it took 137 s with a 45 s limit).
+  - The plugin manifest has no `version`, so Claude Code takes the commit as the version and `claude plugin update`
+    picks up every change (a pinned 0.0.1 kept users on their first copy).
 - Found in a fresh-install trial on a 48k-row LP (2026-10-05):
   - A large LP's IIS starts near the conflict, as a large MIP's does: HiGHS's whole-model IIS ran 305 s without
     finishing on an LP whose conflict is 2 rows; the localized search finds it in 0.4 s.

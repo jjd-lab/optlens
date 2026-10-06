@@ -30,6 +30,16 @@ class TestCodeWorkspace(unittest.TestCase):
         self.run_ok("r = session.try_options(options=[{'label': 'a', 'changes': [{'action': 'set_rhs', 'name': 'resource[Carlos]', 'upper': 2}]}])")
         self.assertIn("a: OPTIMAL", self.run_ok("print(r)"))
 
+    def test_solves_fit_inside_the_call_timeout(self):
+        self.assertEqual(self.run_ok("print(session.time_limit)").split()[0], "60.0")  # 180 s calls: the default
+        ws = CodeWorkspace(str(MODEL), Path(tempfile.mkdtemp()), timeout=25)
+        try:
+            out, err = ws.run_python("print(session.time_limit, session.large_mip_iis_budget)")
+            self.assertFalse(err, out)
+            self.assertEqual(out.split()[:2], ["15.0", "15.0"])
+        finally:
+            ws.close()
+
     def test_engine_calls_are_recorded_for_the_attribution_check(self):
         self.run_ok("print(session.try_options(options=[{'label': 'a', 'changes': [{'action': 'set_rhs', 'name': 'resource[Carlos]', 'upper': 2}]}]))\nx = 1")
         calls = self.ws.last_engine_calls

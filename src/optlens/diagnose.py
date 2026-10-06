@@ -465,8 +465,7 @@ def fix_menu(md: ModelData, backend: Backend, families: list[str] | None = None,
                 "total_change": r.total_violation, "changes": relaxed_bounds(md, r.relaxations)}
 
     with ThreadPoolExecutor(max_workers=parallel_solves(md, min(8, len(families) + 1))) as pool:
-        per_family = list(pool.map(lambda f: one({f}), families))
-        overall = one(None)
+        *per_family, overall = pool.map(one, [{f} for f in families] + [None])  # all at once: one time limit in all
     menu = [{"family": f, "structural": f in linking, **res} for f, res in zip(families, per_family)]
     # business levers first: a linking row's "minimal change" is rarely something a planner can decide
     menu.sort(key=lambda e: (not e["sufficient"], e["structural"],

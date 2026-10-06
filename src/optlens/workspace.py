@@ -22,6 +22,7 @@ from multiprocessing.connection import Client, Listener
 from pathlib import Path
 
 TIMEOUT = 180.0
+SOLVE_MARGIN = 10.0  # seconds a call keeps past its session's solve limit: the solver's grace and the reply
 OUT_CAP = 10_000
 PRELOADED = ("session", "od", "np", "MODEL_FILE", "MODEL_DOC", "TOOL_DOCS")
 
@@ -97,7 +98,8 @@ class CodeWorkspace:
             env["CODE_WS_CONFINE"] = os.pathsep.join([str(self.workdir.resolve()), self.model_file,
                                                       *([self.doc_file] if self.doc_file else []), *self.confine])
         env.update(MODEL_FILE=self.model_file, MODEL_DOC=self.doc_file, CODE_WS_ADDR=listener.address,
-                   CODE_WS_KEY=key.hex(), CODE_WS_DOC=self.doc_file)
+                   CODE_WS_KEY=key.hex(), CODE_WS_DOC=self.doc_file,
+                   CODE_WS_SOLVE_LIMIT=str(max(1.0, (self.timeout or TIMEOUT) - SOLVE_MARGIN)))
         if self.prefer:
             env.update(CODE_WS_PREFER=self.prefer, CODE_WS_ONLY_PREFER="1" if self.only_prefer else "")
         with open(self.workdir / "worker.log", "a") as log:
@@ -194,14 +196,25 @@ def _worker() -> None:
     import numpy as np
 
     import optlens as od
-    from optlens.session import MULTI_MODEL_TOOLS, TOOLS, Session, Version, chosen_solver
+    from optlens.session import (
+        LARGE_MIP_IIS_BUDGET,
+        MULTI_MODEL_TOOLS,
+        TIME_LIMIT,
+        TOOLS,
+        Session,
+        Version,
+        chosen_solver,
+    )
 
     conn = Client(os.environ.pop("CODE_WS_ADDR"), authkey=bytes.fromhex(os.environ.pop("CODE_WS_KEY")))
     confine = os.environ.pop("CODE_WS_CONFINE", None)
     prefer = os.environ.pop("CODE_WS_PREFER", None)
     only = bool(os.environ.pop("CODE_WS_ONLY_PREFER", "")) if prefer else chosen_solver() is not None
+    # a solve that runs to its limit must still return inside the call's timeout, or the process restarts
+    limit = float(os.environ.pop("CODE_WS_SOLVE_LIMIT", TIME_LIMIT))
     ns = {"session": Session({"v0": Version(od.load(os.environ["MODEL_FILE"]), None, "original model")},
-                             os.environ.pop("CODE_WS_DOC") or None, prefer=prefer or chosen_solver(), only_prefer=only),
+                             os.environ.pop("CODE_WS_DOC") or None, prefer=prefer or chosen_solver(), only_prefer=only,
+                             time_limit=min(TIME_LIMIT, limit), large_mip_iis_budget=min(LARGE_MIP_IIS_BUDGET, limit)),
           "od": od, "np": np, "MODEL_FILE": os.environ["MODEL_FILE"], "MODEL_DOC": os.environ["MODEL_DOC"],
           "TOOL_DOCS": {t["name"]: t["description"] for t in TOOLS + MULTI_MODEL_TOOLS}}
     engine_calls: list[dict] = []

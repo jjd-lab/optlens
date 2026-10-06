@@ -40,10 +40,18 @@ class SolveResult:
     x: np.ndarray | None = None
     row_dual: np.ndarray | None = None      # LP only, and only where the backend reports it
     reduced_cost: np.ndarray | None = None
+    bound: float | None = None              # MIP only: the solver's proven bound on the optimum (same sense as obj)
 
     @property
     def feasible(self) -> bool:
         return self.status == "OPTIMAL" or (self.status == "TIME_LIMIT" and self.x is not None)
+
+    @property
+    def gap(self) -> float | None:
+        """Relative distance from the plan's objective to the bound, as the solvers define it; None without both."""
+        if self.obj is None or self.bound is None or not np.isfinite(self.bound):
+            return None
+        return abs(self.obj - self.bound) / max(abs(self.obj), 1e-10)
 
 
 @dataclass
@@ -314,7 +322,8 @@ class HiGHSBackend(Backend):
         if h.getInfo().primal_solution_status != 2:  # 2 = feasible
             return SolveResult(status)
         sol = h.getSolution()
-        res = SolveResult(status, obj=h.getInfo().objective_function_value, x=np.array(sol.col_value))
+        res = SolveResult(status, obj=h.getInfo().objective_function_value, x=np.array(sol.col_value),
+                          bound=h.getInfo().mip_dual_bound if md.is_mip else None)
         if not md.is_mip and sol.dual_valid:
             res.row_dual, res.reduced_cost = np.array(sol.row_dual), np.array(sol.col_dual)
         return res
@@ -358,7 +367,10 @@ class SCIPBackend(Backend):
             best = m.getBestSol()
             by_name = {v.name: m.getSolVal(best, v) for v in m.getVars()}
             x = np.array([by_name[c] for c in md.col_names])
-            return SolveResult(status, obj=md.objective_value(x), x=x)
+            obj = md.objective_value(x)
+            # SCIP's bound is on its own objective, which can leave out md's constant: shift it by the same amount
+            bound = m.getDualbound() + (obj - m.getSolObjVal(best)) if md.is_mip else None
+            return SolveResult(status, obj=obj, x=x, bound=bound)
         return _with_mps(md, run)
 
     def _iis(self, md, time_limit):
@@ -409,7 +421,8 @@ class GurobiBackend(Backend):
             if m.SolCount == 0:
                 return SolveResult(status)
             by_name = {v.VarName: v.X for v in m.getVars()}
-            res = SolveResult(status, obj=m.ObjVal, x=np.array([by_name[c] for c in md.col_names]))
+            res = SolveResult(status, obj=m.ObjVal, x=np.array([by_name[c] for c in md.col_names]),
+                              bound=m.ObjBound if md.is_mip else None)
             if not md.is_mip and m.Status == GRB.OPTIMAL and md.convex_objective():
                 # Gurobi solves a non-convex QP like a MIP and has no duals for it
                 pi = {c.ConstrName: c.Pi for c in m.getConstrs()}

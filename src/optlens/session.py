@@ -279,6 +279,35 @@ def _fmt(v) -> str:
     return str(v)
 
 
+def _proof(r: od.SolveResult) -> str:
+    """What a result does not prove: a plan the solver stopped on gives its bound and gap; a time limit without a plan
+    is not infeasibility."""
+    if r.status == "OPTIMAL":
+        return ""
+    if r.x is None:
+        return " (no plan found within the time limit; not proof that none exists)" if r.status == "TIME_LIMIT" else ""
+    if r.gap is not None:
+        return f" (best plan found, not proven optimal: bound {_fmt(r.bound)}, gap {r.gap:.2%})"
+    return " (best plan found, not proven optimal)"
+
+
+def _optimum_range(r: od.SolveResult) -> tuple[float, float] | None:
+    """Where the optimal objective lies: the objective itself when proven, else between the plan and the bound."""
+    if r.status == "OPTIMAL" and r.obj is not None:
+        return r.obj, r.obj
+    if r.x is None or r.gap is None:
+        return None
+    return min(r.obj, r.bound), max(r.obj, r.bound)
+
+
+def _change_range(ra: od.SolveResult, rb: od.SolveResult) -> str:
+    """For two results not both proven: the interval the optimal objective change from ra to rb must lie in."""
+    a, b = _optimum_range(ra), _optimum_range(rb)
+    if a is None or b is None or (a[0] == a[1] and b[0] == b[1]):
+        return ""
+    return f"; the optimal change lies between {_fmt(b[0] - a[1])} and {_fmt(b[1] - a[0])} (plans not proven optimal)"
+
+
 def _conflict_rows(md, rows, limit=ROW_LIMIT, per_family=3) -> list[str]:
     """IIS rows with their expressions. A conflict over IIS_SUMMARY_ROWS rows is shown by family, a few example
     rows each: a list of hundreds of rows is unreadable, and large conflicts are real (the ad model's LP
@@ -598,7 +627,7 @@ class Session:
         lines = [f"version {version}: {v.description}",
                  f"rows {md.num_rows}, columns {md.num_cols} ({int(md.is_int.sum())} integer), "
                  f"{'minimize' if md.minimize else 'maximize'}",
-                 f"status: {r.status}"]
+                 f"status: {r.status}{_proof(r)}"]
         if md.quadratic_objective:
             lines.append("objective is quadratic (a QP; MIQP if integer variables are present)")
         if r.obj is not None:
@@ -842,12 +871,12 @@ class Session:
                                   f"created, nothing solved")
         vid = self._new_version(md, base_version, description, solver, changes=changes)
         r = self.solved(vid)
-        lines = [f"created {vid} from {base_version} ({len(changes)} changes): status {r.status}"]
+        lines = [f"created {vid} from {base_version} ({len(changes)} changes): status {r.status}{_proof(r)}"]
         if self.has_solution(vid):
             lines.append(f"objective: {_fmt(r.obj)}")
             base = self.solved(base_version)
             if self.has_solution(base_version):
-                lines.append(f"objective change vs {base_version}: {_fmt(r.obj - base.obj)}")
+                lines.append(f"objective change vs {base_version}: {_fmt(r.obj - base.obj)}{_change_range(base, r)}")
                 lines += self._limit_use_lines(base_md, base, md, r, changes)
             elif base.status in ("INFEASIBLE", "INF_OR_UNBD") and explain_conflict:
                 lines += self._fix_conflict_lines(base_md, md, changes, solver)
@@ -912,7 +941,9 @@ class Session:
             if r.x is not None:
                 line += f", objective {_fmt(r.obj)}"
                 if base_ok:
-                    line += f" (change {_fmt(r.obj - self.solved(base_version).obj)})"
+                    base = self.solved(base_version)
+                    line += f" (change {_fmt(r.obj - base.obj)}{_change_range(base, r)})"
+            line += _proof(r)
             lines.append(line)
         return "\n".join(lines)
 
@@ -1101,16 +1132,20 @@ class Session:
             families = self.iis(version, solver)[0] if md.is_mip else sorted({base_name(r) for r in self.iis(version, solver)[1].rows})
         from concurrent.futures import ThreadPoolExecutor
 
+        # the screen and the relaxations share one time limit, so the whole menu returns within it
+        start = time.monotonic()
+
         def screen(fam):
             rows = [n for n in md.row_names if base_name(n) == fam]
-            return fam, (bk.solve(md.drop_rows(rows), lim).status if rows else "OTHER")
+            return fam, (bk.solve(md.drop_rows(rows), max(1.0, lim / 3)).status if rows else "OTHER")
 
         with ThreadPoolExecutor(max_workers=parallel_solves(md)) as pool:
             screened = dict(pool.map(screen, families))
         # Dropping a whole family is the largest change it can make: if the model is still infeasible without it,
         # no change to that family alone fixes it, and its relaxation need not be run.
         hopeless = [f for f, st in screened.items() if st == "INFEASIBLE"]
-        menu = od.fix_menu(md, bk, [f for f in families if f not in hopeless], lim, min_objective=True)
+        menu = od.fix_menu(md, bk, [f for f in families if f not in hopeless],
+                           max(1.0, lim - (time.monotonic() - start)), min_objective=True)
         menu = menu[:-1] + [{"family": f, "structural": False, "sufficient": False, "status": "INFEASIBLE (still infeasible with the whole family dropped)",
                              "total_change": None, "changes": []} for f in hopeless] + menu[-1:]
         lines = []
@@ -1164,8 +1199,9 @@ class Session:
         """What differs between two solved versions: objective, and per family the decisions and limits that changed."""
         version_b = version_b or list(self.versions)[-1]  # the latest added (an added model has a name, not vN)
         ra, rb = self.solved(version_a), self.solved(version_b)
-        head = [f"{version_a}: {ra.status}, objective {_fmt(ra.obj)}; {version_b}: {rb.status}, objective {_fmt(rb.obj)}"
-                + (f"; change {_fmt(rb.obj - ra.obj)}" if ra.obj is not None and rb.obj is not None else "")]
+        head = [f"{version_a}: {ra.status}, objective {_fmt(ra.obj)}{_proof(ra)}; {version_b}: {rb.status}, objective "
+                f"{_fmt(rb.obj)}{_proof(rb)}"
+                + (f"; change {_fmt(rb.obj - ra.obj)}{_change_range(ra, rb)}" if ra.obj is not None and rb.obj is not None else "")]
         if not (self.has_solution(version_a) and self.has_solution(version_b)):
             return head[0] + "\nboth versions need a solution to compare decisions"
         ma, mb = self.get(version_a).md, self.get(version_b).md
