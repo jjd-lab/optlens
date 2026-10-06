@@ -322,7 +322,10 @@ def load_script(path: str | os.PathLike, attr: str | None = None) -> ModelData:
             except UnsupportedModel:
                 raise
             except (Exception, SystemExit) as e:
-                raise RuntimeError(f"running {path.name} failed: {type(e).__name__}: {e}") from e
+                hint = (f"; install {e.name!r} into the Python that runs optlens, {sys.executable} (for Pyomo, PuLP or "
+                        "gurobipy, its extra: optlens[pyomo], optlens[pulp], optlens[gurobi])"
+                        if isinstance(e, ModuleNotFoundError) and e.name else "")
+                raise RuntimeError(f"running {path.name} failed: {type(e).__name__}: {e}{hint}") from e
             if attr is not None:
                 if attr not in ns:
                     raise UnsupportedModel(f"{path.name} defines no {attr!r}"
