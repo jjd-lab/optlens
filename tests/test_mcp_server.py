@@ -1,6 +1,7 @@
 """The optlens MCP server, in-process. Run from the repo root: python -m unittest tests.test_mcp_server"""
 import importlib.util
 import os
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -11,6 +12,11 @@ MODEL = Path(__file__).resolve().parent / "fixtures/ex_milp_tutorial__rhs_tighte
 
 @unittest.skipUnless(HAS_MCP, "mcp not installed (optlens[mcp])")
 class TestMcpServer(unittest.TestCase):
+    def setUp(self):  # saved contexts and versions go to a fresh folder, not the repo's .optlens/
+        env = mock.patch.dict(os.environ, {"OPTLENS_CONTEXT_DIR": str(Path(tempfile.mkdtemp()) / "context")})
+        env.start()
+        self.addCleanup(env.stop)
+
     def run_client(self, steps):
         import anyio
         from mcp.client import Client
@@ -92,6 +98,22 @@ class TestMcpServer(unittest.TestCase):
             self.assertIn("INFEASIBLE 1", out)
         finally:
             state.close_workspace()
+
+    def test_versions_come_back_when_the_same_model_is_opened_again(self):
+        from optlens.mcp_server import State
+
+        first = State()
+        first.call("open_model", {"path": str(MODEL)})
+        row = first.session.get("v0").md.row_names[0]
+        first.call("modify_and_resolve", {"changes": [{"action": "set_rhs", "name": row, "upper": 1e6}],
+                                          "description": "looser first row"})
+        out, err = State().call("open_model", {"path": str(MODEL)})  # a resumed conversation: a new server
+        self.assertFalse(err, out)
+        self.assertIn("From an earlier session on this same model", out)
+        self.assertIn("restored 1 versions (v1)", out)
+        with mock.patch("optlens.mcp_server.model_hash", return_value="other"):  # a model whose numbers changed
+            out, _ = State().call("open_model", {"path": str(MODEL)})
+        self.assertNotIn("earlier session", out)
 
     def test_run_python_and_the_tools_share_versions_and_solves(self):
         from optlens.mcp_server import State

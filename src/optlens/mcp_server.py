@@ -13,6 +13,7 @@ structure; `open_model` shows it in the same words every time, so sessions and p
 """
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import os
@@ -22,6 +23,7 @@ import time
 from pathlib import Path
 
 import anyio
+import numpy as np
 from jsonschema import Draft202012Validator
 from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
@@ -162,6 +164,11 @@ class State:
         self.source = ""
         self.model_spec, self.doc = "", None  # what open_model loaded, for the run_python workspace
         self.workspace: CodeWorkspace | None = None  # started on the first run_python call, one per open model
+        # the open model's versions, saved after each call that adds one: a resumed conversation starts a new server,
+        # and open_model on the same model (same numbers) brings them back
+        self.versions_file: Path | None = None
+        self.saved_versions = 0
+        self.save_lock = threading.Lock()
         self.ws_lock = threading.Lock()  # one snippet at a time: the workspace is one process
         # A client may call tools in parallel. Calls that replace or add models take this lock; the others run in
         # parallel (the session allocates version ids under its own lock, and solves run in separate processes), so
@@ -195,6 +202,12 @@ class State:
         self.source = doc.name if doc else ""
         self.key = context_key(self.inv, doc.read_text(errors="replace") if doc else "")
         self.store = self.store or ContextStore()
+        self.versions_file = self.store.root.parent / "sessions" / f"{md.name}-{model_hash(md)}.json"
+        restored = ""
+        if self.versions_file.is_file():
+            restored = ("\nFrom an earlier session on this same model (version_history lists them): "
+                        + self.session.restore_versions(json.loads(self.versions_file.read_text())))
+        self.saved_versions = len(self.session.versions)
         interp = self.store.load(md.name, self.key)
         if interp is not None:
             context = f"Saved model context ({self.store.path(md.name, self.key).name}):\n{self._context(interp)}"
@@ -209,7 +222,7 @@ class State:
                 f"{', '.join(available_solvers())}; preferred: {self.session.prefer or 'none (routed per model)'}\n"
                 + (f"This session uses only {prefer}, the user's choice: in run_python solve with "
                    f"`od.BACKENDS['{prefer}']`, never another solver.\n" if self.session.strict() else "")
-                + self.session.get_model_overview() + "\n" + limits_line() + "\n\n" + context)
+                + self.session.get_model_overview() + restored + "\n" + limits_line() + "\n\n" + context)
 
     def save_model_context(self, **interp) -> str:
         clean, coverage = validate(interp, self.inv)
@@ -243,8 +256,19 @@ class State:
     def call(self, name: str, args: dict) -> tuple[str, bool]:
         if name in ("open_model", "add_model", "save_model_context"):
             with self.lock:
-                return self._call(name, args)
-        return self._call(name, args)
+                out = self._call(name, args)
+        else:
+            out = self._call(name, args)
+        self._save_versions()
+        return out
+
+    def _save_versions(self) -> None:
+        with self.save_lock:
+            if self.session is None or self.versions_file is None or len(self.session.versions) == self.saved_versions:
+                return
+            self.versions_file.parent.mkdir(parents=True, exist_ok=True)
+            self.versions_file.write_text(json.dumps(self.session.export_versions()))
+            self.saved_versions = len(self.session.versions)
 
     def _call(self, name: str, args: dict) -> tuple[str, bool]:
         if name != "open_model" and self.session is None:
@@ -265,6 +289,16 @@ class State:
         if self.session is not None:
             note, self.session.route_note = self.session.route_note, ""
         return f"{out}\n[{time.time() - t0:.1f} s]" + (f"\n[{note}]" if note else ""), False
+
+
+def model_hash(md: od.ModelData) -> str:
+    """The model's numbers and names: saved versions are restored only onto the model they were made from."""
+    h = hashlib.sha256()
+    A = md.A.tocsr()
+    for a in (md.obj, A.data, A.indices, A.indptr, md.row_lo, md.row_hi, md.col_lb, md.col_ub, md.is_int):
+        h.update(np.ascontiguousarray(a).tobytes())
+    h.update("\n".join(md.row_names + md.col_names).encode())
+    return h.hexdigest()[:16]
 
 
 def argument_problems(schema: dict, args: dict) -> str:
