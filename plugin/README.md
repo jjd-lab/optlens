@@ -21,7 +21,7 @@ What it adds to Claude Code:
 - the optlens tools, including `add_model` and `compare_models` for several models or scenarios side by side,
   `save_model_context` for one saved description of each model (`.optlens/context/`), and `run_python`, a persistent
   Python process with the engine preloaded as `session` (the model loaded once; several steps per call; its versions
-  separate from the other tools'). Solves stop at 45 s unless the agent asks for more (up to 95 s, when a solve was still improving): the
+  shared with the other tools'). Solves stop at 45 s unless the agent asks for more (up to 95 s, when a solve was still improving): the
   plugin sets `OPTLENS_CALL_LIMIT` to 110, under the 2 minutes past which Claude Code moves a call to the
   background, and its server's `timeout` to 10 minutes, which overrides a shorter
   `MCP_TOOL_TIMEOUT` (some environments set 60 s). Set `OPTLENS_CALL_LIMIT` (seconds, 30 to 590) before starting

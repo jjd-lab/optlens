@@ -90,7 +90,7 @@ Report every model the question names, with the same metrics for each.
 Many solves: when a question needs several steps or many solves (a sweep, a search, a check before an answer), use
 run_python instead of calling tools one by one: session there has every tool as a method on the open model,
 variables persist between calls, and the model is loaded once. Print only what the answer needs. Versions made in
-run_python and by the other tools are separate: compare within one of them.
+run_python and by the other tools are shared, with their solves.
 
 Large MIPs and time: open_model's base solve is the probe. Proven optimal: the defaults are fine. Stopped at its
 limit: report the plan with its bound and gap, and read the note on its starting plan. If the solver improved on the

@@ -135,8 +135,8 @@ def with_limits(tool: dict) -> dict:
 RUN_PYTHON = {
     "name": "run_python",
     "description": tool_description(RUN_PYTHON_LIMIT, note=(
-        "It opens the model open_model opened, as its own copy: versions made here and by the other tools are "
-        "separate. After a time-out the process restarts and its variables are gone. ")),
+        "It opens the model open_model opened and shares its versions with the other tools: a version either "
+        "made is in both, with its solve. After a time-out the process restarts and its variables are gone. ")),
     "input_schema": {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"]},
 }
 
@@ -232,7 +232,7 @@ class State:
                                                only_prefer=self.session.only_prefer,
                                                base=(self.session.route, v0) if v0 is not None else None)
             t0 = time.time()
-            out, err = self.workspace.run_python(code)
+            out, err = self.workspace.run_python(code, self.session)
             return f"{out}\n[{time.time() - t0:.1f} s]", err
 
     def close_workspace(self) -> None:

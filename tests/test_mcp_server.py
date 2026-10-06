@@ -93,6 +93,28 @@ class TestMcpServer(unittest.TestCase):
         finally:
             state.close_workspace()
 
+    def test_run_python_and_the_tools_share_versions_and_solves(self):
+        from optlens.mcp_server import State
+
+        state = State()
+        try:
+            state.call("open_model", {"path": str(MODEL)})
+            row = state.session.get("v0").md.row_names[0]
+            state.call("modify_and_resolve", {"changes": [{"action": "set_rhs", "name": row, "upper": 1e6}]})
+            out, err = state.call("run_python", {"code": "v = session.get('v1')\n"
+                                                         "print(v.result is not None, v.result.status, v.changes)"})
+            self.assertFalse(err, out)
+            self.assertIn(f"True {state.session.get('v1').result.status}", out)  # its solve came along: no re-solve
+            self.assertIn(row, out)
+            out, err = state.call("run_python", {"code": f"print(session.modify_and_resolve(base_version='v1', "
+                                                         f"changes=[{{'action': 'set_rhs', 'name': {row!r}, 'upper': 2e6}}]))"})
+            self.assertIn("created v2 from v1", out)
+            self.assertIsNotNone(state.session.get("v2").result)  # and back: the tools have v2, solved
+            out, err = state.call("compare_versions", {"version_a": "v1", "version_b": "v2"})
+            self.assertFalse(err, out)
+        finally:
+            state.close_workspace()
+
     @unittest.skipUnless(importlib.util.find_spec("gurobipy"), "gurobipy not installed")
     def test_gurobi_chosen_in_open_model_reaches_run_python(self):
         from optlens.mcp_server import State

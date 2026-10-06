@@ -31,7 +31,7 @@ PRELOADED = ("session", "od", "np", "MODEL_FILE", "MODEL_DOC", "TOOL_DOCS")
 
 def tool_description(timeout: float = TIMEOUT, note: str = "") -> str:
     """The `run_python` tool's description: what is preloaded, and every engine method with its real signature. ``note``
-    goes before the closing advice (the plugin says its versions are separate from its other tools')."""
+    goes before the closing advice (the plugin says its versions are shared with its other tools')."""
     import optlens as od
     from optlens.session import TOOLS, Session, chosen_solver
 
@@ -51,8 +51,7 @@ def tool_description(timeout: float = TIMEOUT, note: str = "") -> str:
         f"`od.BACKENDS['{solver}'].solve(md, time_limit=60.0, start=None)` returns `.status`, `.obj`, `.bound`, `.gap`, "
         "`.x`, `.row_dual`, `.reduced_cost`, and `md.row_names`, `md.col_names`, `md.row_lo`, `md.row_hi`, `md.obj` (costs), "
         "`md.is_int` describe it; a version `v = session.get('v1')` has `v.md` and `v.changes`, "
-        "`session.solved('v1')` its result (the same fields; solved if it was not), and both see only the versions "
-        "made in this process; `np`; `MODEL_FILE` and "
+        "`session.solved('v1')` its result (the same fields; solved if it was not); `np`; `MODEL_FILE` and "
         "`MODEL_DOC`, the model and document paths. "
         "`od.BACKENDS[...].solve` solves from scratch; `session` methods start a MIP of 5,000+ rows from a plan built "
         "from its LP relaxation, far better on large MIPs, so solve versions of a large MIP through `session`. "
@@ -97,6 +96,7 @@ class CodeWorkspace:
         self.workdir.mkdir(parents=True, exist_ok=True)
         self.proc = self.conn = None
         self.last_engine_calls: list[dict] = []  # the session methods the last snippet called, for the attribution check
+        self._sent: set[str] = set()  # versions whose solve the worker has (run_python with a session)
         self._start()
 
     def _start(self) -> None:
@@ -144,9 +144,17 @@ class CodeWorkspace:
         if not self.conn.recv().get("ready"):
             raise RuntimeError(f"code worker failed to start; see {self.workdir / 'worker.log'}")
 
-    def run_python(self, code: str) -> tuple[str, bool]:
+    def run_python(self, code: str, session=None) -> tuple[str, bool]:
+        """Runs ``code``. With ``session`` (the MCP server's), the worker's session and it share their versions: the
+        server's versions and solves go in first, and the versions and solves the code made come back."""
+        msg = {"code": code}
+        if session is not None:
+            msg["versions"] = session.export_versions()
+            msg["results"] = {vid: v.result for vid, v in session.versions.items()
+                              if v.result is not None and vid not in self._sent}
+            self._sent |= set(msg["results"])
         try:
-            self.conn.send({"code": code})
+            self.conn.send(msg)
             limit = self.timeout or TIMEOUT
             if not self.conn.poll(limit):
                 return self._restart(f"timed out after {limit:.0f} s"), True
@@ -154,12 +162,18 @@ class CodeWorkspace:
         except (EOFError, OSError):  # the worker died (out of memory on an 837k-row model): restart it, like a time-out
             return self._restart("the Python process stopped (it ran out of memory)"), True
         self.last_engine_calls = r["engine_calls"]
+        if session is not None and r.get("versions"):
+            session.restore_versions(r["versions"])
+            for vid, res in r["results"].items():
+                if vid in session.versions and session.versions[vid].result is None:
+                    session.versions[vid].result = res
+            self._sent |= set(r["results"])
         return r["out"], r["error"]
 
     def _restart(self, why: str) -> str:
         self.close()
         self._start()
-        self.last_engine_calls = []
+        self.last_engine_calls, self._sent = [], set()
         return (f"[{why}; the Python process was restarted, so its variables are gone. "
                 "`session` and `od` are loaded again with the original model as v0]")
 
@@ -267,6 +281,7 @@ def _worker() -> None:
         ns["session"].solved("v0")  # the engine's solver processes start here, before programs are refused
         _confine(confine.split(os.pathsep))
     base = set(ns) | {"__builtins__"}
+    known: set[str] = set()  # versions whose solve the caller has
     conn.send({"ready": True})
     while True:
         try:
@@ -274,6 +289,13 @@ def _worker() -> None:
         except EOFError:
             return
         buf, error = io.StringIO(), False
+        session = ns["session"]
+        if "versions" in msg:  # the caller's versions and solves (the MCP server's tools)
+            session.restore_versions(msg["versions"])
+            for vid, res in msg["results"].items():
+                if vid in session.versions and session.versions[vid].result is None:
+                    session.versions[vid].result = res
+            known |= set(msg["results"])
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
             try:
                 exec(compile(msg["code"], "<run_python>", "exec"), ns)
@@ -289,7 +311,10 @@ def _worker() -> None:
                 traceback.print_exc(limit=-3)
         user = sorted(n for n in ns if n not in base and not n.startswith("_"))
         out = _cap(buf.getvalue()) + f"\n[in scope: {', '.join([*PRELOADED, *user])}]"
-        conn.send({"out": out, "error": error, "engine_calls": engine_calls[:]})
+        made = {vid: v.result for vid, v in session.versions.items() if v.result is not None and vid not in known}
+        known |= set(made)
+        conn.send({"out": out, "error": error, "engine_calls": engine_calls[:],
+                   **({"versions": session.export_versions(), "results": made} if "versions" in msg else {})})
         engine_calls.clear()
 
 
