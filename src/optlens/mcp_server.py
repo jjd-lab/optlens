@@ -207,6 +207,8 @@ class State:
         if self.versions_file.is_file():
             restored = ("\nFrom an earlier session on this same model (version_history lists them): "
                         + self.session.restore_versions(json.loads(self.versions_file.read_text())))
+        elif earlier := sorted(self.versions_file.parent.glob(f"{md.name}-*.json"), key=lambda f: f.stat().st_mtime):
+            restored = _earlier_data(earlier[-1])
         self.saved_versions = len(self.session.versions)
         interp = self.store.load(md.name, self.key)
         if interp is not None:
@@ -289,6 +291,23 @@ class State:
         if self.session is not None:
             note, self.session.route_note = self.session.route_note, ""
         return f"{out}\n[{time.time() - t0:.1f} s]" + (f"\n[{note}]" if note else ""), False
+
+
+def _earlier_data(path: Path) -> str:
+    """The versions an earlier session made on this model before its numbers changed (the user or agent edited the
+    data): not restored, since the same changes may mean something else now, but listed so they can be carried over."""
+    try:
+        made = [r for r in json.loads(path.read_text()).get("versions", []) if r.get("changes")]
+    except (OSError, ValueError):
+        return ""
+    if not made:
+        return ""
+    when = time.strftime("%Y-%m-%d %H:%M", time.localtime(path.stat().st_mtime))
+    return ("\nAn earlier session on this model, when its data differed (saved " + when + "), made these versions; "
+            "they are not restored. To carry one over, ask the user, then apply its changes (in " + str(path)
+            + ") with modify_and_resolve:\n" + "\n".join(
+                f"  {r['id']} from {r.get('parent')}: {r.get('description') or ''} ({len(r['changes'])} changes)"
+                for r in made[:20]))
 
 
 def model_hash(md: od.ModelData) -> str:

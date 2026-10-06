@@ -34,6 +34,7 @@ TIME_LIMIT = 60.0
 IIS_SOLVE_LIMIT = 60.0   # per solve inside an IIS search (LP: the whole HiGHS IIS)
 IIS_BUDGET = 300.0       # a whole IIS search; large MIPs stop "reduced"
 LARGE_MIP_ROWS = 500      # a MIP IIS search this size is slow: shorter default budget, and the result says so
+LARGE_IIS_ROWS = 200  # an IIS cut short at more rows than this names no conflict a reader can follow (E64: 3,319)
 FIX_CHECKS = 5           # suspicious_values solves the undo of at most this many flags, each and all together
 FIX_CHECK_BUDGET = 60.0  # seconds for all of those solves; the rest are listed unchecked
 LARGE_MIP_IIS_BUDGET = 60.0
@@ -669,8 +670,8 @@ class Session:
     def _other_verdict(self, vid: str, v: "Version", r: od.SolveResult, spent: float) -> od.SolveResult:
         """A solve with no verdict (no plan, and not proven infeasible or unbounded) gets one try on the other
         open-source solver, within what is left of the most a call may solve: HiGHS ran 120 s without deciding the
-        E64 feed model, which SCIP proves infeasible in 5 s. The one that decides becomes this version's solver (and
-        the model's, for the first version), so the tools after it use it too."""
+        E64 feed model, which SCIP proves infeasible in 5 s. The one that decides becomes this version's solver, which
+        the IIS tools on it use; the model's route stays, so other versions keep it (HiGHS's duals on the fixed ones)."""
         used = v.solver or self.route
         other = {"highs": "scip", "scip": "highs"}.get(used or "")
         if r.x is not None or r.status not in ("OTHER", "TIME_LIMIT") or not other or self.strict():
@@ -688,8 +689,6 @@ class Session:
             self._note(f"neither {used} nor {other} gave a verdict on {vid} in the time")
             return r
         v.solver = other
-        if self.route == used and all(w is v or w.result is None for w in self.versions.values()):
-            self.route = other
         self._note(f"{used} gave no verdict on {vid} ({r.status}), so {other} solved it: {r2.status}")
         return r2
 
@@ -701,7 +700,7 @@ class Session:
         up to IIS_BUDGET on a large MIP). Returns (conflicting families for a MIP, IIS)."""
         v = self.get(vid)
         large = v.md.is_mip and v.md.num_rows > LARGE_MIP_ROWS
-        bk, budget = self._bk(v.md, solver), self._limit(time_limit, self.large_mip_iis_budget if large else IIS_BUDGET)
+        bk, budget = self._bk(v.md, solver or v.solver), self._limit(time_limit, self.large_mip_iis_budget if large else IIS_BUDGET)
         if v.iis_result is None:
             if v.md.is_mip:
                 # A row-level MIP IIS of the full model doesn't finish on open-source solvers at this
@@ -823,7 +822,9 @@ class Session:
         if iis.method.endswith(":reduced"):
             lines.append("note: time limit reached; this subset is infeasible but may not be minimal"
                          + ("; on a MIP this size drop_test and attainable_limit usually answer faster, or pass a longer "
-                            "time_limit" if md.num_rows > LARGE_MIP_ROWS else ""))
+                            "time_limit" if md.is_mip and md.num_rows > LARGE_MIP_ROWS else "")
+                         + ("; a conflict this large is read better with feasibility_relaxation: the least change that "
+                            "makes the model feasible, by row and family" if len(iis.rows) > LARGE_IIS_ROWS else ""))
         if iis.method.startswith("lp_relaxation") or ":lp_relaxation" in iis.method:
             lines.append("note: the conflict holds even without integrality (the LP relaxation is infeasible); "
                          "this is the relaxation's minimal conflict")
@@ -1052,7 +1053,7 @@ class Session:
         from dataclasses import replace
 
         md = self.get(version).md
-        bk, lim = self._bk(md, solver), self._limit(time_limit, self.time_limit)
+        bk, lim = self._bk(md, solver or self.get(version).solver), self._limit(time_limit, self.time_limit)
         names = list(dict.fromkeys(constraints))[:MAX_ATTAINABLE]
 
         def one(name):
@@ -1096,7 +1097,7 @@ class Session:
         from concurrent.futures import ThreadPoolExecutor
 
         md = self.get(version).md
-        bk, lim = self._bk(md, solver), self._limit(time_limit, self.time_limit)
+        bk, lim = self._bk(md, solver or self.get(version).solver), self._limit(time_limit, self.time_limit)
         fams = list(dict.fromkeys(families)) or list(dict.fromkeys(base_name(n) for n in md.row_names))
 
         def one(fam):
@@ -1225,7 +1226,7 @@ class Session:
         md = self.get(version).md
         if self.solved(version).status not in ("INFEASIBLE", "INF_OR_UNBD"):
             return f"version {version} is {self.solved(version).status}; fix_menu needs an infeasible version"
-        bk, lim = self._bk(md, solver), self._limit(time_limit, self.time_limit)
+        bk, lim = self._bk(md, solver or self.get(version).solver), self._limit(time_limit, self.time_limit)
         if families is None:  # the conflict's families (as od.fix_menu would pick them)
             families = self.iis(version, solver)[0] if md.is_mip else sorted({base_name(r) for r in self.iis(version, solver)[1].rows})
         from concurrent.futures import ThreadPoolExecutor

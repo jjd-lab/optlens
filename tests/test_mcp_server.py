@@ -111,9 +111,11 @@ class TestMcpServer(unittest.TestCase):
         self.assertFalse(err, out)
         self.assertIn("From an earlier session on this same model", out)
         self.assertIn("restored 1 versions (v1)", out)
-        with mock.patch("optlens.mcp_server.model_hash", return_value="other"):  # a model whose numbers changed
+        with mock.patch("optlens.mcp_server.model_hash", return_value="other"):  # the data was edited since
             out, _ = State().call("open_model", {"path": str(MODEL)})
-        self.assertNotIn("earlier session", out)
+        self.assertNotIn("From an earlier session", out)
+        self.assertIn("when its data differed", out)  # listed to carry over, not restored
+        self.assertIn("v1 from v0: looser first row (1 changes)", out)
 
     def test_run_python_and_the_tools_share_versions_and_solves(self):
         from optlens.mcp_server import State

@@ -50,14 +50,22 @@ class TestSolverRouting(unittest.TestCase):
         s = Session({"v0": Version(bad, None, "original")})
         with mock.patch.object(od.BACKENDS["highs"], "solve", return_value=od.SolveResult("OTHER")):
             r = s.solved("v0")
-            self.assertEqual((r.status, s.route, s.get("v0").solver), ("INFEASIBLE", "scip", "scip"))
+            self.assertEqual((r.status, s.route, s.get("v0").solver), ("INFEASIBLE", "highs", "scip"))
             self.assertIn("highs gave no verdict on v0 (OTHER), so scip solved it: INFEASIBLE", s.route_note)
-            self.assertIn("IIS", s.compute_iis())  # the tools after it use the solver that decided
+            self.assertIn("IIS (scip", s.compute_iis())  # the IIS tools on v0 use the solver that decided it
+        s.modify_and_resolve(changes=[{"action": "set_bounds", "name": "x", "upper": 2.0}])
+        self.assertEqual((s.get("v1").solver, s.solved("v1").status), (None, "OPTIMAL"))  # the route, HiGHS
         spent = Session({"v0": Version(bad, None, "original")}, time_limit=45, max_time_limit=48)
         with mock.patch.object(od.BACKENDS["highs"], "solve", return_value=od.SolveResult("OTHER")), \
                 mock.patch.object(ses.time, "time", side_effect=[0.0] + [46.0] * 50):
             self.assertEqual(spent.solved("v0").status, "OTHER")
         self.assertIn("pass solver='scip' to try it", spent.route_note)
+
+    def test_a_large_cut_short_iis_points_to_the_relaxation(self):
+        s = Session({"v0": Version(replace(lp(), col_ub=np.full(2, 0.5)), None, "original")})
+        big = od.IIS(rows=["need"] * 300, method="scip:reduced")
+        with mock.patch.object(s, "iis", return_value=([], big)), mock.patch.object(ses, "_conflict_rows", return_value=[]):
+            self.assertIn("read better with feasibility_relaxation", s.compute_iis())
 
     def test_route_note_is_shown_once(self):
         s = Session({"v0": Version(lp(), None, "original")})
