@@ -144,6 +144,11 @@ git clone https://github.com/jjd-lab/optlens && optlens/scripts/sandbox.sh ~/opt
 `--project PATH` puts your own model there instead. It is a separate setup, not a security sandbox (see Security
 above); delete the folder to remove it.
 
+The same week in a clean Claude Code with the plugin (rendered from a recorded session; each tool call shows its real
+duration):
+
+![Claude Code with the optlens plugin finds why the week's hotel plan is infeasible, checks the fix, and ranks the business rules by the revenue they cost](https://raw.githubusercontent.com/jjd-lab/optlens/main/docs/plugin-agent-demo.svg)
+
 ## Hotel pack
 
 [packs/hotel/](https://github.com/jjd-lab/optlens/blob/main/packs/hotel/README.md) is a synthetic hotel revenue-management model (room type × night × length of stay
