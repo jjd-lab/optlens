@@ -129,6 +129,21 @@ the code the agent writes (its process starts without your API keys and tokens, 
 user can; in Claude Code you approve each call), and opening a `.py` model runs that file up to its first solve call.
 Open only models and code you trust. To report a vulnerability, see [SECURITY.md](https://github.com/jjd-lab/optlens/blob/main/SECURITY.md).
 
+## Try it
+
+To try the plugin without touching your own Claude Code setup, build a clean one in a folder of its own: its own venv
+(optlens from GitHub), its own Claude config with only the optlens plugin, and a hotel week whose data load went wrong
+([packs/hotel/examples/try_week](https://github.com/jjd-lab/optlens/blob/main/packs/hotel/examples/try_week/README.md)),
+with five questions to ask:
+
+```bash
+git clone https://github.com/jjd-lab/optlens && optlens/scripts/sandbox.sh ~/optlens-try
+~/optlens-try/start.sh          # log in on the first start; the questions are in ~/optlens-try/HOW-TO.md
+```
+
+`--project PATH` puts your own model there instead. It is a separate setup, not a security sandbox (see Security
+above); delete the folder to remove it.
+
 ## Hotel pack
 
 [packs/hotel/](https://github.com/jjd-lab/optlens/blob/main/packs/hotel/README.md) is a synthetic hotel revenue-management model (room type × night × length of stay
