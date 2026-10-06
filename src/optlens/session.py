@@ -657,12 +657,44 @@ class Session:
         """The version's solve, done once; ``time_limit`` for that first solve (default: the session's)."""
         v = self.get(vid)
         if v.result is None:
+            t0 = time.time()
             if v.solver is None and self.route is None:
                 v.result = self._route_first(v)
             else:
                 bk = self._bk(v.md, v.solver)
                 v.result = self._started(v.md, lambda t, s: bk.solve(v.md, t, start=s), time_limit)
+            v.result = self._other_verdict(vid, v, v.result, time.time() - t0)
         return v.result
+
+    def _other_verdict(self, vid: str, v: "Version", r: od.SolveResult, spent: float) -> od.SolveResult:
+        """A solve with no verdict (no plan, and not proven infeasible or unbounded) gets one try on the other
+        open-source solver, within what is left of the most a call may solve: HiGHS ran 120 s without deciding the
+        E64 feed model, which SCIP proves infeasible in 5 s. The one that decides becomes this version's solver (and
+        the model's, for the first version), so the tools after it use it too."""
+        used = v.solver or self.route
+        other = {"highs": "scip", "scip": "highs"}.get(used or "")
+        if r.x is not None or r.status not in ("OTHER", "TIME_LIMIT") or not other or self.strict():
+            return r
+        left = min(self.time_limit, (self.max_time_limit or self.time_limit + spent) - spent)
+        if left < 5:
+            self._note(f"{used} gave no verdict on {vid} in its time, and none was left to try {other}: pass "
+                       f"solver='{other}' to try it")
+            return r
+        try:
+            r2 = self._started(v.md, lambda t, s: od.BACKENDS[other].solve(v.md, t, start=s), left)
+        except ImportError:
+            return r
+        if r2.x is None and r2.status in ("OTHER", "TIME_LIMIT"):
+            self._note(f"neither {used} nor {other} gave a verdict on {vid} in the time")
+            return r
+        v.solver = other
+        if self.route == used and all(w is v or w.result is None for w in self.versions.values()):
+            self.route = other
+        self._note(f"{used} gave no verdict on {vid} ({r.status}), so {other} solved it: {r2.status}")
+        return r2
+
+    def _note(self, note: str) -> None:
+        self.route_note = f"{self.route_note}; {note}" if self.route_note else note
 
     def iis(self, vid: str, solver: str | None = None, time_limit: float | None = None) -> tuple[list[str], od.IIS]:
         """The version's IIS, computed once and shared by compute_iis and suspicious_values (each search can take

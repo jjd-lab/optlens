@@ -2,6 +2,7 @@
 Run from the repo root: python -m unittest tests.test_solver_routing"""
 import unittest
 from dataclasses import replace
+from unittest import mock
 
 import numpy as np
 import scipy.sparse as sp
@@ -42,6 +43,21 @@ class TestSolverRouting(unittest.TestCase):
         s = Session({"v0": Version(lp(), None, "original")})
         s.solved("v0")
         self.assertEqual(s.route, "highs")
+
+    def test_no_verdict_is_tried_on_the_other_solver(self):
+        # E64: HiGHS ran out its limit on an infeasible LP (OTHER) that SCIP decides in seconds
+        bad = replace(lp(), col_ub=np.full(2, 0.5))  # x + y >= 2 with both at most 0.5
+        s = Session({"v0": Version(bad, None, "original")})
+        with mock.patch.object(od.BACKENDS["highs"], "solve", return_value=od.SolveResult("OTHER")):
+            r = s.solved("v0")
+            self.assertEqual((r.status, s.route, s.get("v0").solver), ("INFEASIBLE", "scip", "scip"))
+            self.assertIn("highs gave no verdict on v0 (OTHER), so scip solved it: INFEASIBLE", s.route_note)
+            self.assertIn("IIS", s.compute_iis())  # the tools after it use the solver that decided
+        spent = Session({"v0": Version(bad, None, "original")}, time_limit=45, max_time_limit=48)
+        with mock.patch.object(od.BACKENDS["highs"], "solve", return_value=od.SolveResult("OTHER")), \
+                mock.patch.object(ses.time, "time", side_effect=[0.0] + [46.0] * 50):
+            self.assertEqual(spent.solved("v0").status, "OTHER")
+        self.assertIn("pass solver='scip' to try it", spent.route_note)
 
     def test_route_note_is_shown_once(self):
         s = Session({"v0": Version(lp(), None, "original")})
