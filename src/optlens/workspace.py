@@ -21,6 +21,8 @@ import threading
 from multiprocessing.connection import Client, Listener
 from pathlib import Path
 
+import numpy as np
+
 TIMEOUT = 180.0
 SOLVE_MARGIN = 10.0  # seconds a call keeps past its session's solve limit: the solver's grace and the reply
 OUT_CAP = 10_000
@@ -72,11 +74,14 @@ class CodeWorkspace:
 
     def __init__(self, model_path: str, workdir: Path, doc_path: str | None = None, timeout: float | None = None,
                  confine: list[str] | None = None, prefer: str | None = None, only_prefer: bool = False,
-                 solve_limit: float | None = None):
+                 solve_limit: float | None = None, base=None):
         self.model_file = str(Path(model_path).resolve())
         self.doc_file = str(Path(doc_path).resolve()) if doc_path else ""
         self.timeout = timeout  # per call; None: TIMEOUT (read at call time)
         self.solve_limit = solve_limit  # the session's per-solve limit; None: TIME_LIMIT. Kept inside the call's timeout
+        # (solver route, SolveResult) of the original model, already solved by the caller (the MCP server): the worker
+        # starts with it instead of solving it again, so a call's first what-if gets the whole time limit
+        self.base = base
         # confine: the code may read and write only inside the working directory, these extra paths (a pack, the
         # model and document) and Python's own installation, and may not start other programs (for testing an agent,
         # which must not find tools or answers elsewhere on disk). None: no limits, as for a user's own machine.
@@ -108,8 +113,15 @@ class CodeWorkspace:
                    CODE_WS_SOLVE_LIMIT=str(max(1.0, min(self.solve_limit or TIME_LIMIT,
                                                         (self.timeout or TIMEOUT) - SOLVE_MARGIN))))
         if self.solve_limit is not None:  # a caller with a client timeout (the MCP server): a tool's time_limit may ask
-            # for more than the default, within the call's timeout
-            env["CODE_WS_MAX_LIMIT"] = str(max(1.0, (self.timeout or TIMEOUT) - SOLVE_MARGIN))
+            # for more than the default, within the call's timeout less the margin and the edits (6,240 set_rhs changes
+            # and their version took 5 s besides a 90 s solve in a 100 s call)
+            env["CODE_WS_MAX_LIMIT"] = str(max(1.0, (self.timeout or TIMEOUT) - SOLVE_MARGIN - 5.0))
+        if self.base is not None:
+            route, r = self.base
+            path = self.workdir / "v0_result.npz"
+            np.savez(path, status=r.status, **{k: getattr(r, k) for k in ("obj", "x", "bound", "row_dual", "reduced_cost")
+                                                 if getattr(r, k) is not None})
+            env.update(CODE_WS_V0=str(path.resolve()), CODE_WS_ROUTE=route or "")
         if self.prefer:
             env.update(CODE_WS_PREFER=self.prefer, CODE_WS_ONLY_PREFER="1" if self.only_prefer else "")
         with open(self.workdir / "worker.log", "a") as log:
@@ -229,6 +241,11 @@ def _worker() -> None:
                              max_time_limit=float(cap) if cap else None),
           "od": od, "np": np, "MODEL_FILE": os.environ["MODEL_FILE"], "MODEL_DOC": os.environ["MODEL_DOC"],
           "TOOL_DOCS": {t["name"]: t["description"] for t in TOOLS + MULTI_MODEL_TOOLS}}
+    if v0 := os.environ.pop("CODE_WS_V0", None):  # the caller's solve of the original model, and its solver
+        with np.load(v0) as f:
+            got = {k: (f[k].item() if f[k].ndim == 0 else f[k]) for k in f.files}
+        ns["session"].versions["v0"].result = od.SolveResult(str(got.pop("status")), **got)
+        ns["session"].route = os.environ.pop("CODE_WS_ROUTE", "") or None
     engine_calls: list[dict] = []
 
     def traced(name, method):

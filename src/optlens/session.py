@@ -884,7 +884,7 @@ class Session:
                 md, drops = md.drop_rows(drops), []
                 names = {}
             if c.get("action") in ("set_rhs", "set_objective_coef") and (not batch or batch[0]["action"] == c["action"]):
-                if not names or names.get("_n") is not len(md.row_names):
+                if not names or names.get("_n") != len(md.row_names):  # != : `is not` on ints rebuilt the sets per change
                     names = {"_n": len(md.row_names), "rows": set(md.row_names), "cols": set(md.col_names)}
                 ok = c.get("name") in (names["rows"] if c["action"] == "set_rhs" else names["cols"])
                 if ok and c["action"] == "set_rhs":

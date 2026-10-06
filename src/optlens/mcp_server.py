@@ -225,9 +225,12 @@ class State:
             if self.workspace is None:
                 import tempfile
 
+                v0 = self.session.versions["v0"].result  # open_model solved it: the workspace starts from it
                 self.workspace = CodeWorkspace(self.model_spec, Path(tempfile.mkdtemp(prefix="optlens-ws-")),
                                                str(self.doc) if self.doc else None, timeout=RUN_PYTHON_LIMIT,
-                                               solve_limit=CALL_SOLVE_LIMIT, prefer=self.session.prefer, only_prefer=self.session.only_prefer)
+                                               solve_limit=CALL_SOLVE_LIMIT, prefer=self.session.prefer,
+                                               only_prefer=self.session.only_prefer,
+                                               base=(self.session.route, v0) if v0 is not None else None)
             t0 = time.time()
             out, err = self.workspace.run_python(code)
             return f"{out}\n[{time.time() - t0:.1f} s]", err

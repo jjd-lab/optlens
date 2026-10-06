@@ -41,6 +41,22 @@ class TestCodeWorkspace(unittest.TestCase):
         finally:
             ws.close()
 
+    def test_the_callers_base_solve_is_reused(self):
+        # the MCP server solved the original model already: the worker starts from that result instead of solving it
+        # again inside the call's timeout (a 90 s what-if plus a 45 s base solve overran a 100 s run_python call)
+        import numpy as np
+
+        from optlens import SolveResult
+
+        fake = SolveResult("TIME_LIMIT", obj=123.0, x=np.zeros(3), bound=100.0)
+        ws = CodeWorkspace(str(MODEL), Path(tempfile.mkdtemp()), base=("scip", fake))
+        try:
+            out, err = ws.run_python("r = session.solved('v0'); print(r.status, r.obj, r.bound, session.route)")
+            self.assertFalse(err, out)
+            self.assertEqual(out.split()[:4], ["TIME_LIMIT", "123.0", "100.0", "scip"])
+        finally:
+            ws.close()
+
     def test_a_longer_solve_limit_is_kept_inside_the_call_timeout(self):
         # the MCP server's OPTLENS_CALL_LIMIT=300: solves past the usual 60 s, still 10 s inside the call
         for timeout, solve_limit, expect in ((290, 285, ["280.0", "275.0"]), (50, 45, ["40.0", "40.0"])):
@@ -49,7 +65,7 @@ class TestCodeWorkspace(unittest.TestCase):
                 out, err = ws.run_python("print(session.time_limit, session.large_mip_iis_budget, "
                                          "session.max_time_limit)")
                 self.assertFalse(err, out)
-                self.assertEqual(out.split()[:3], expect + [expect[0]])  # tools' time_limit capped there too
+                self.assertEqual(out.split()[:3], expect + [f"{timeout - 15:.1f}"])  # a time_limit may ask up to this
             finally:
                 ws.close()
 

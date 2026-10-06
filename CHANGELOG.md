@@ -1,6 +1,10 @@
 # Changelog
 
 ## 0.0.1 (unreleased, 2026-09-30)
+- `run_python`'s worker starts from the server's solve of the original model instead of solving it again (in E62 a
+  90 s what-if after the worker's own 45 s base solve overran the 100 s call), and its `time_limit` may ask for up to
+  15 s less than the call. Thousands of `set_rhs` changes apply 28x faster: a check compared the row count with `is not`
+  and rebuilt the name sets for every change (6,240 changes took about 42 s on a 24k-row model, now 2 s).
 - The plugin's call limit is 110 s (a `time_limit` up to 95 s): with 300 the agent asked for the maximum on its first
   what-if although the base solve showed more time would not help, Claude Code moved the call to the background past
   2 minutes, and the answer did not come. `run_python`'s description says `session` methods start large MIPs from a

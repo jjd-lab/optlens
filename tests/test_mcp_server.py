@@ -82,6 +82,9 @@ class TestMcpServer(unittest.TestCase):
         state = State()
         try:
             state.call("open_model", {"path": str(MODEL)})
+            # the workspace starts from open_model's solve of v0: no second solve of the original model
+            out, err = state.call("run_python", {"code": "print(session.get('v0').result is not None, session.route)"})
+            self.assertIn(f"True {state.session.route}", out)
             out, err = state.call("run_python", {"code": "r = session.solved('v0').status\nprint(r)"})
             self.assertFalse(err, out)
             self.assertIn("INFEASIBLE", out)
