@@ -1,0 +1,95 @@
+{
+ "nights": 14,
+ "hotels": 1,
+ "seed": 7,
+ "room_count": {
+  "standard": 120,
+  "deluxe": 60,
+  "suite": 20
+ },
+ "overbooking": {
+  "standard": 0.05,
+  "deluxe": 0.03,
+  "suite": 0.0
+ },
+ "base_rate": {
+  "standard": 140.0,
+  "deluxe": 210.0,
+  "suite": 420.0
+ },
+ "tier_multiplier": [
+  0.8,
+  0.9,
+  1.0,
+  1.15,
+  1.3
+ ],
+ "tier_demand": [
+  1.45,
+  1.2,
+  1.0,
+  0.78,
+  0.6
+ ],
+ "base_arrivals": {
+  "standard": 75.0,
+  "deluxe": 32.0,
+  "suite": 9.0
+ },
+ "window_share": {
+  "early": 0.2,
+  "advance": 0.35,
+  "late": 0.3,
+  "lastminute": 0.15
+ },
+ "stay_share": {
+  "1": 0.5,
+  "2": 0.3,
+  "3": 0.2
+ },
+ "stay_discount": {
+  "1": 0.0,
+  "2": 0.05,
+  "3": 0.1
+ },
+ "weekend_lift": 1.3,
+ "event_lift": 1.6,
+ "event_every": 30,
+ "event_first": 9,
+ "season_amplitude": 0.25,
+ "noise": 0.1,
+ "discount_share": 0.35,
+ "housekeeping_share": 0.55,
+ "occupancy_floor": 0.4,
+ "group_block": {
+  "standard": 10,
+  "deluxe": 0,
+  "suite": 0
+ },
+ "linked": true,
+ "group_occupancy_floor": 0.6,
+ "discount_budget": 300.0,
+ "rate_levels": [
+  0.85,
+  1.0,
+  1.15,
+  1.3,
+  1.5
+ ],
+ "level_demand": [
+  1.2,
+  1.0,
+  0.84,
+  0.7,
+  0.56
+ ],
+ "type_gap": {
+  "deluxe": 40.0,
+  "suite": 120.0
+ },
+ "rate_step": 0.3,
+ "event_premium": 1.3,
+ "occupancy_promise": 0.55,
+ "avg_stay": 1.7,
+ "levels": null
+}
