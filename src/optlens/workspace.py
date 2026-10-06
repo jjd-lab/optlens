@@ -47,6 +47,8 @@ def tool_description(timeout: float = TIMEOUT, note: str = "") -> str:
         "`md.set_row_bounds(name, lo=None, hi=None)` and `md.set_col_bounds(name, lb=None, ub=None)` return a changed "
         f"copy, `od.BACKENDS['{solver}'].solve(md)` returns `.status`, `.obj`, `.x`, and `md.row_names`, `md.col_names`, "
         "`md.row_lo`, `md.row_hi` describe it; `np`; `MODEL_FILE` and `MODEL_DOC`, the model and document paths. "
+        "`od.BACKENDS[...].solve` solves from scratch; `session` methods start a MIP of 5,000+ rows from a plan built "
+        "from its LP relaxation, far better on large MIPs, so solve versions of a large MIP through `session`. "
         + note + "Do several steps in one call and print only what you need. Methods of `session` (full description: "
         "print(TOOL_DOCS['name'])):\n" + api_lines(TOOLS, Session))
 

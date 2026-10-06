@@ -110,8 +110,8 @@ for one tool call; `open_model` states the limits in force, and a result cut sho
 
 | client | waits for a tool call | `OPTLENS_CALL_LIMIT` |
 |---|---|---|
-| Claude Code (plugin) | 10 minutes, set by the plugin | 300, set by the plugin |
-| Claude Code (`claude mcp add`) | `MCP_TOOL_TIMEOUT` (about 28 hours unless set; some environments set 60 s) | 60 unless set; to allow more, add `"timeout": 600000` to the server's entry and set 300 |
+| Claude Code (plugin) | 10 minutes, set by the plugin (calls past 2 minutes move to the background) | 110, set by the plugin |
+| Claude Code (`claude mcp add`) | `MCP_TOOL_TIMEOUT` (about 28 hours unless set; some environments set 60 s) | 60 unless set; to allow more, add `"timeout": 600000` to the server's entry and set 110 |
 | Claude Desktop, MCP TypeScript SDK clients | 60 s | 60 (the default) |
 | other clients | see the client's settings | 60 unless the client allows more |
 

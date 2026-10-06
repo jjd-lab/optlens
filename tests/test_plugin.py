@@ -37,11 +37,12 @@ class TestPlugin(unittest.TestCase):
 
     def test_the_plugin_passes_the_settings_through(self):
         env = json.loads((PLUGIN / ".mcp.json").read_text())["mcpServers"]["optlens"]["env"]
-        self.assertEqual(env["OPTLENS_CALL_LIMIT"], "${OPTLENS_CALL_LIMIT:-300}")
+        # under 120 s, past which Claude Code moves a tool call to the background (an agent then waits or works around it)
+        self.assertEqual(env["OPTLENS_CALL_LIMIT"], "${OPTLENS_CALL_LIMIT:-110}")
         # Claude Code stops a tool call at MCP_TOOL_TIMEOUT, which an environment may set to 60 s (a cloud session did,
         # and open_model timed out while its base solve ran); the server's own timeout overrides it
         timeout = json.loads((PLUGIN / ".mcp.json").read_text())["mcpServers"]["optlens"]["timeout"]
-        self.assertGreaterEqual(timeout, (300 + 10) * 1000)
+        self.assertGreaterEqual(timeout, (110 + 10) * 1000)
         self.assertEqual(env["OPTLENS_SOLVER"], "${OPTLENS_SOLVER:-auto}")
 
     def test_the_instructions_say_how_to_load_deferred_tools(self):

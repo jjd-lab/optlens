@@ -1,6 +1,10 @@
 # Changelog
 
 ## 0.0.1 (unreleased, 2026-09-30)
+- The plugin's call limit is 110 s (a `time_limit` up to 95 s): with 300 the agent asked for the maximum on its first
+  what-if although the base solve showed more time would not help, Claude Code moved the call to the background past
+  2 minutes, and the answer did not come. `run_python`'s description says `session` methods start large MIPs from a
+  plan while `od.BACKENDS[...].solve` solves from scratch (an agent solved cold that way and got $83.7M against $27.7M).
 - The default solve limit stays 45 s whatever `OPTLENS_CALL_LIMIT` says; that is now the most a tool's `time_limit` may
   ask for. In a plugin trial a 300 s default made `open_model` run past 2 minutes, Claude Code moved it to the
   background, and the agent started its own solve of the same model meanwhile. `modify_and_resolve` takes a
