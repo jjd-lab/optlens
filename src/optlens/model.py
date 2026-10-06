@@ -122,6 +122,9 @@ class ModelData:
             col_ub[j] = ub
         return replace(self, col_lb=col_lb, col_ub=col_ub)
 
+    def lp_relaxation(self) -> "ModelData":
+        return replace(self, is_int=np.zeros(self.num_cols, bool))
+
     def set_obj_coef(self, col: str, value: float) -> "ModelData":
         obj = self.obj.copy()
         obj[self.col_index(col)] = value

@@ -96,8 +96,9 @@ Large MIPs and time: open_model's base solve is the probe. Proven optimal: the d
 limit: report the plan with its bound and gap, and read the note on its starting plan. If the solver improved on the
 start, a longer time_limit on the what-ifs that matter (modify_and_resolve, up to the most open_model states) can
 narrow the gap; if it found no better plan, more time is unlikely to help, so report each effect as the range its gaps
-allow. A call that runs for minutes may be moved to the background by the client: wait for its result, and never start
-another solve of the same model meanwhile (it competes for the same processors).
+allow. Never narrow that range by judgement: an LP relaxation's change bounds nothing for the MIP; give it, if at all,
+as an indication, beside the proven range. A call that runs for minutes may be moved to the background by the client:
+wait for its result, and never start another solve of the same model meanwhile (it competes for the same processors).
 
 Solvers: say which solver ran. Don't ask the user to choose up front; offer another solver only when it matters (a
 solve hit its time limit, two solvers disagree, the user must match a production solver). Gurobi is used only if the

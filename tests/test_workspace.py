@@ -84,6 +84,12 @@ class TestCodeWorkspace(unittest.TestCase):
         out = self.run_ok("md = session.get('v0').md\nres = od.BACKENDS['highs'].solve(md)\nprint(res.status, round(res.obj))")
         self.assertIn("OPTIMAL 193", out)
 
+    def test_the_attributes_the_description_names_exist(self):
+        out = self.run_ok("v = session.get('v0'); md = v.md; r = session.solved('v0')\n"
+                          "lp = md.lp_relaxation()\nprint(lp.is_int.any(), md.obj.shape == r.x.shape,"
+                          " r.bound, r.gap, r.row_dual is None, r.reduced_cost is None, v.changes)")
+        self.assertTrue(out.startswith("False True"), out)
+
     def test_name_error_names_the_closest_variable(self):
         self.run_ok("total = 1")
         out, err = self.ws.run_python("print(totl)")
