@@ -2,7 +2,7 @@
   "mcpServers": {
     "optlens": {
       "command": "optlens-mcp",
-      "env": {"OPTLENS_SOLVER": "${OPTLENS_SOLVER:-auto}", "OPTLENS_CALL_LIMIT": "${OPTLENS_CALL_LIMIT:-60}"}
+      "env": {"OPTLENS_SOLVER": "${OPTLENS_SOLVER:-auto}", "OPTLENS_CALL_LIMIT": "${OPTLENS_CALL_LIMIT:-300}"}
     }
   }
 }

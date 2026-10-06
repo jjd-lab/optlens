@@ -98,6 +98,29 @@ def call_limits(value: str | None = None) -> tuple[float, float, float]:
 
 # per run_python call; per solve; a large MIP's IIS search (the result says when it stopped short: "reduced")
 RUN_PYTHON_LIMIT, CALL_SOLVE_LIMIT, CALL_IIS_BUDGET = call_limits()
+CALL_LIMIT = RUN_PYTHON_LIMIT + 10.0
+
+
+def limits_line() -> str:
+    """The time limits as open_model states them, so the agent (and the user it tells) knows them from the start."""
+    return (f"Time limits: each tool call answers within {CALL_LIMIT:.0f} s (OPTLENS_CALL_LIMIT); solves stop at "
+            f"{CALL_SOLVE_LIMIT:.0f} s, run_python calls at {RUN_PYTHON_LIMIT:.0f} s, and a tool's time_limit can be at "
+            f"most {CALL_SOLVE_LIMIT:.0f} s. A result cut short by a limit says so. If this client waits longer for a "
+            "tool call (the Claude Code CLI does), the user can set OPTLENS_CALL_LIMIT higher and restart the server.")
+
+
+def with_limits(tool: dict) -> dict:
+    """A tool's schema with its time_limit text saying this server's limits (the session's own say 60 s)."""
+    props = tool["input_schema"].get("properties", {})
+    if "time_limit" not in props:
+        return tool
+    text = props["time_limit"]["description"]
+    text = text.replace("default 60.", f"default and most {CALL_SOLVE_LIMIT:.0f} here.")
+    text = text.replace("default 300, or 60 on a MIP over 500 rows.",
+                        f"default {CALL_SOLVE_LIMIT:.0f}, or {CALL_IIS_BUDGET:.0f} on a MIP over 500 rows; at most "
+                        f"{CALL_SOLVE_LIMIT:.0f} here.")
+    schema = {**tool["input_schema"], "properties": {**props, "time_limit": {**props["time_limit"], "description": text}}}
+    return {**tool, "input_schema": schema}
 RUN_PYTHON = {
     "name": "run_python",
     "description": tool_description(RUN_PYTHON_LIMIT, note=(
@@ -153,7 +176,7 @@ class State:
         prefer, only = preferred_solver(solver)
         self.session = Session({"v0": Version(md, None, "original model")}, str(doc) if doc else None,
                                prefer=prefer, only_prefer=only, time_limit=CALL_SOLVE_LIMIT,
-                               large_mip_iis_budget=CALL_IIS_BUDGET)
+                               large_mip_iis_budget=CALL_IIS_BUDGET, max_time_limit=CALL_SOLVE_LIMIT)
         self.name = p.name
         self.md, self.inv = md, inventory(md)
         self.model_spec, self.doc = f"{p}{sep}{attr}", doc
@@ -175,7 +198,7 @@ class State:
                 f"{', '.join(available_solvers())}; preferred: {self.session.prefer or 'none (routed per model)'}\n"
                 + (f"This session uses only {prefer}, the user's choice: in run_python solve with "
                    f"`od.BACKENDS['{prefer}']`, never another solver.\n" if self.session.strict() else "")
-                + self.session.get_model_overview() + "\n\n" + context)
+                + self.session.get_model_overview() + "\n" + limits_line() + "\n\n" + context)
 
     def save_model_context(self, **interp) -> str:
         clean, coverage = validate(interp, self.inv)
@@ -246,7 +269,7 @@ def argument_problems(schema: dict, args: dict) -> str:
 def build_server(state: State | None = None) -> Server:
     state = state or State()
     tools = [Tool(name=t["name"], description=t["description"], input_schema=t["input_schema"])
-             for t in [OPEN_MODEL, SAVE_MODEL_CONTEXT, *MULTI_MODEL_TOOLS, *TOOLS, RUN_PYTHON]]
+             for t in map(with_limits, [OPEN_MODEL, SAVE_MODEL_CONTEXT, *MULTI_MODEL_TOOLS, *TOOLS, RUN_PYTHON])]
     schemas = {t.name: t.input_schema for t in tools}
 
     async def list_tools(ctx, params) -> ListToolsResult:

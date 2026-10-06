@@ -31,7 +31,8 @@ class TestCodeWorkspace(unittest.TestCase):
         self.assertIn("a: OPTIMAL", self.run_ok("print(r)"))
 
     def test_solves_fit_inside_the_call_timeout(self):
-        self.assertEqual(self.run_ok("print(session.time_limit)").split()[0], "60.0")  # 180 s calls: the default
+        self.assertEqual(self.run_ok("print(session.time_limit, session.max_time_limit)").split()[:2],
+                         ["60.0", "None"])  # 180 s calls (bench, optchat): the default, no cap
         ws = CodeWorkspace(str(MODEL), Path(tempfile.mkdtemp()), timeout=25)
         try:
             out, err = ws.run_python("print(session.time_limit, session.large_mip_iis_budget)")
@@ -45,9 +46,10 @@ class TestCodeWorkspace(unittest.TestCase):
         for timeout, solve_limit, expect in ((290, 285, ["280.0", "275.0"]), (50, 45, ["40.0", "40.0"])):
             ws = CodeWorkspace(str(MODEL), Path(tempfile.mkdtemp()), timeout=timeout, solve_limit=solve_limit)
             try:
-                out, err = ws.run_python("print(session.time_limit, session.large_mip_iis_budget)")
+                out, err = ws.run_python("print(session.time_limit, session.large_mip_iis_budget, "
+                                         "session.max_time_limit)")
                 self.assertFalse(err, out)
-                self.assertEqual(out.split()[:2], expect)
+                self.assertEqual(out.split()[:3], expect + [expect[0]])  # tools' time_limit capped there too
             finally:
                 ws.close()
 

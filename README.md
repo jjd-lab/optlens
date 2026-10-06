@@ -101,9 +101,20 @@ Install as above (it puts `optlens-mcp` on your PATH), then connect once; the ag
 | **Any other MCP client** | run `optlens-mcp` as a stdio server |
 
 The command must be on the PATH the agent sees; give the full path to `optlens-mcp` (for example `.venv/bin/optlens-mcp`)
-if it is not. `OPTLENS_SOLVER` (`highs`, `scip`, `gurobi` or `auto`) chooses the solver once. Each tool call answers within
-`OPTLENS_CALL_LIMIT` seconds (default 60, the timeout of clients such as Claude Desktop); clients that wait longer, like
-the Claude Code CLI, can set it higher (`300` gives slow MIP solves about 5 minutes).
+if it is not. `OPTLENS_SOLVER` (`highs`, `scip`, `gurobi` or `auto`) chooses the solver once.
+
+**Time limits.** Each tool call answers within `OPTLENS_CALL_LIMIT` seconds (at least 30): solves stop 15 s sooner,
+`run_python` calls 10 s sooner, and a tool's `time_limit` cannot go past the solve limit. Set it to what your client
+waits for one tool call; `open_model` states the limits in force, and a result cut short by one says so.
+
+| client | waits for a tool call | `OPTLENS_CALL_LIMIT` |
+|---|---|---|
+| Claude Code (plugin) | about 28 hours (`MCP_TOOL_TIMEOUT`) | 300, set by the plugin |
+| Claude Code (`claude mcp add`) | about 28 hours | 60 unless set; 300 recommended |
+| Claude Desktop, MCP TypeScript SDK clients | 60 s | 60 (the default) |
+| other clients | see the client's settings | 60 unless the client allows more |
+
+Large MIPs may not finish within any of these; results then report the plan found, its bound and its gap.
 
 Then ask: *"Why is `plan.mps` infeasible, and what fixes it?"* The agent opens the model, writes its context once
 (what each constraint and variable family means, as JSON in `.optlens/context/` that you can review and commit), and

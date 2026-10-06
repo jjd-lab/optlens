@@ -105,6 +105,8 @@ class CodeWorkspace:
                    CODE_WS_KEY=key.hex(), CODE_WS_DOC=self.doc_file,
                    CODE_WS_SOLVE_LIMIT=str(max(1.0, min(self.solve_limit or TIME_LIMIT,
                                                         (self.timeout or TIMEOUT) - SOLVE_MARGIN))))
+        if self.solve_limit is not None:  # a caller with a client timeout (the MCP server): tools' time_limit capped too
+            env["CODE_WS_MAX_LIMIT"] = env["CODE_WS_SOLVE_LIMIT"]
         if self.prefer:
             env.update(CODE_WS_PREFER=self.prefer, CODE_WS_ONLY_PREFER="1" if self.only_prefer else "")
         with open(self.workdir / "worker.log", "a") as log:
@@ -217,9 +219,11 @@ def _worker() -> None:
     only = bool(os.environ.pop("CODE_WS_ONLY_PREFER", "")) if prefer else chosen_solver() is not None
     # a solve that runs to its limit must still return inside the call's timeout, or the process restarts
     limit = float(os.environ.pop("CODE_WS_SOLVE_LIMIT", TIME_LIMIT))
+    cap = os.environ.pop("CODE_WS_MAX_LIMIT", None)
     ns = {"session": Session({"v0": Version(od.load(os.environ["MODEL_FILE"]), None, "original model")},
                              os.environ.pop("CODE_WS_DOC") or None, prefer=prefer or chosen_solver(), only_prefer=only,
-                             time_limit=limit, large_mip_iis_budget=max(min(LARGE_MIP_IIS_BUDGET, limit), limit - 5)),
+                             time_limit=limit, large_mip_iis_budget=max(min(LARGE_MIP_IIS_BUDGET, limit), limit - 5),
+                             max_time_limit=float(cap) if cap else None),
           "od": od, "np": np, "MODEL_FILE": os.environ["MODEL_FILE"], "MODEL_DOC": os.environ["MODEL_DOC"],
           "TOOL_DOCS": {t["name"]: t["description"] for t in TOOLS + MULTI_MODEL_TOOLS}}
     engine_calls: list[dict] = []

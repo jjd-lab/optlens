@@ -28,6 +28,16 @@ class TestAgentTools(unittest.TestCase):
         self.assertIn("lower limit 12 -> at most 8.33333333333333", out)
         self.assertIn("upper limit 20 -> at least 31", out)  # x = 5, y = 7: 10 + 21
 
+    def test_time_limits_stay_within_the_cap_and_a_lowered_one_is_said(self):
+        self.assertEqual(self.s._limit(120, 60), 120)  # no cap: the bench and optchat sessions
+        s = Session({"v0": Version(model(), None, "original")}, max_time_limit=45)
+        self.assertEqual(s._limit(None, 300), 45)  # an engine default (an LP's IIS search) lowered silently
+        self.assertEqual(s.route_note, "")
+        out, err = s.call("attainable_limit", {"constraints": ["target"], "time_limit": 120})
+        self.assertFalse(err, out)
+        self.assertIn("at most 8.33333333333333", out)
+        self.assertIn("time_limit 120 s lowered to 45 s", out)
+
     def test_drop_test(self):
         out = self.s.drop_test()
         self.assertIn("target (1 rows): dropping it restores feasibility", out)

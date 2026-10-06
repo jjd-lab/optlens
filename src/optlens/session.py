@@ -399,6 +399,9 @@ class Session:
     # of handing the model to HiGHS or SCIP, and no other solver may be passed in
     only_prefer: bool = False
     large_mip_iis_budget: float = LARGE_MIP_IIS_BUDGET  # the MCP server lowers it to fit its client's call timeout
+    # the most any search or a tool's time_limit may take (the MCP server sets it inside its client's call timeout, so
+    # a call answers instead of being cut off); None: no cap
+    max_time_limit: float | None = None
     # Tools may be called from several threads at once (the plugin's analysts share one server): new version ids are
     # allocated under this lock; solves run outside it, in their own processes.
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
@@ -420,6 +423,18 @@ class Session:
             out, err = f"{type(e).__name__}: {e}", True
         note, self.route_note = self.route_note, ""
         return f"{out}\n[{time.time() - t0:.1f} s]" + (f"\n[{note}]" if note else ""), err
+
+    def _limit(self, asked: float | None, default: float) -> float:
+        """The seconds a search may take: what the call asked for, else the default, within max_time_limit. A cap on
+        what the call asked for is said in the result."""
+        seconds = asked or default
+        if self.max_time_limit is None or seconds <= self.max_time_limit:
+            return seconds
+        if asked:
+            note = (f"time_limit {asked:g} s lowered to {self.max_time_limit:g} s, the most a tool call may take here "
+                    "(the client's tool-call timeout; OPTLENS_CALL_LIMIT raises it where the client waits longer)")
+            self.route_note = f"{self.route_note}; {note}" if self.route_note else note
+        return self.max_time_limit
 
     def _new_version(self, md, base: str | None, description: str, solver: str | None = None,
                      name: str | None = None, changes=None) -> str:
@@ -605,7 +620,7 @@ class Session:
         up to IIS_BUDGET on a large MIP). Returns (conflicting families for a MIP, IIS)."""
         v = self.get(vid)
         large = v.md.is_mip and v.md.num_rows > LARGE_MIP_ROWS
-        bk, budget = self._bk(v.md, solver), time_limit or (self.large_mip_iis_budget if large else IIS_BUDGET)
+        bk, budget = self._bk(v.md, solver), self._limit(time_limit, self.large_mip_iis_budget if large else IIS_BUDGET)
         if v.iis_result is None:
             if v.md.is_mip:
                 # A row-level MIP IIS of the full model doesn't finish on open-source solvers at this
@@ -743,7 +758,7 @@ class Session:
                                time_limit=None) -> str:
         md = self.get(version).md
         only = set(only_families) if only_families else None
-        res = od.feas_relax(md, self._bk(md, solver), relax_bounds=relax_variable_bounds, time_limit=time_limit or self.time_limit,
+        res = od.feas_relax(md, self._bk(md, solver), relax_bounds=relax_variable_bounds, time_limit=self._limit(time_limit, self.time_limit),
                             only=only, min_objective=True)
         if res.total_violation is None:
             scope = f" when only {sorted(only)} may change" if only else ""
@@ -955,7 +970,7 @@ class Session:
         from dataclasses import replace
 
         md = self.get(version).md
-        bk, lim = self._bk(md, solver), time_limit or self.time_limit
+        bk, lim = self._bk(md, solver), self._limit(time_limit, self.time_limit)
         names = list(dict.fromkeys(constraints))[:MAX_ATTAINABLE]
 
         def one(name):
@@ -999,7 +1014,7 @@ class Session:
         from concurrent.futures import ThreadPoolExecutor
 
         md = self.get(version).md
-        bk, lim = self._bk(md, solver), time_limit or self.time_limit
+        bk, lim = self._bk(md, solver), self._limit(time_limit, self.time_limit)
         fams = list(dict.fromkeys(families)) or list(dict.fromkeys(base_name(n) for n in md.row_names))
 
         def one(fam):
@@ -1027,7 +1042,8 @@ class Session:
         names = list(dict.fromkeys(c["name"] for c in changes if c["action"] in ("set_rhs", "set_bounds")))
         if not names:
             return []
-        res = od.fix_conflicts(base_md, md, names, self._bk(base_md, solver), budget=FIX_CHECK_BUDGET, time_limit=IIS_SOLVE_LIMIT)
+        res = od.fix_conflicts(base_md, md, names, self._bk(base_md, solver), budget=self._limit(None, FIX_CHECK_BUDGET),
+                               time_limit=self._limit(None, IIS_SOLVE_LIMIT))
         lines = []
         for conf in res["conflicts"]:
             fams: dict[str, int] = {}
@@ -1089,7 +1105,7 @@ class Session:
         lines = ["checked fixes (a flagged value put back, a sense flipped back with the same limit; solved):"]
 
         def solve(changes) -> str | None:
-            left = FIX_CHECK_BUDGET - (time.time() - t0)
+            left = self._limit(None, FIX_CHECK_BUDGET) - (time.time() - t0)
             if left <= 1:
                 return None
             try:
@@ -1127,7 +1143,7 @@ class Session:
         md = self.get(version).md
         if self.solved(version).status not in ("INFEASIBLE", "INF_OR_UNBD"):
             return f"version {version} is {self.solved(version).status}; fix_menu needs an infeasible version"
-        bk, lim = self._bk(md, solver), time_limit or self.time_limit
+        bk, lim = self._bk(md, solver), self._limit(time_limit, self.time_limit)
         if families is None:  # the conflict's families (as od.fix_menu would pick them)
             families = self.iis(version, solver)[0] if md.is_mip else sorted({base_name(r) for r in self.iis(version, solver)[1].rows})
         from concurrent.futures import ThreadPoolExecutor

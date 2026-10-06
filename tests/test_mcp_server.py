@@ -61,6 +61,15 @@ class TestMcpServer(unittest.TestCase):
         with mock.patch.dict(os.environ, {"OPTLENS_CALL_LIMIT": "120"}):
             self.assertEqual(call_limits(), (110.0, 105.0, 100.0))
 
+    def test_the_agent_is_told_the_limits(self):
+        [tools, opened] = self.run_client([lambda c: c.list_tools(),
+                                           lambda c: c.call_tool("open_model", {"path": str(MODEL)})])
+        schemas = {t.name: t.input_schema for t in tools.tools}
+        self.assertIn("default and most 45 here.", schemas["fix_menu"]["properties"]["time_limit"]["description"])
+        self.assertIn("at most 45 here.", schemas["compute_iis"]["properties"]["time_limit"]["description"])
+        self.assertIn("each tool call answers within 60 s (OPTLENS_CALL_LIMIT); solves stop at 45 s",
+                      opened.content[0].text)
+
     def test_run_python_keeps_variables_and_has_the_engine(self):
         from optlens.mcp_server import State
 
