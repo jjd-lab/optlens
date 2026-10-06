@@ -35,6 +35,16 @@ class TestPlugin(unittest.TestCase):
         mcp = json.loads((PLUGIN / ".mcp.json").read_text())
         self.assertEqual(mcp["mcpServers"]["optlens"]["command"], "optlens-mcp")
 
+    def test_the_plugin_passes_the_settings_through(self):
+        env = json.loads((PLUGIN / ".mcp.json").read_text())["mcpServers"]["optlens"]["env"]
+        self.assertEqual(env["OPTLENS_CALL_LIMIT"], "${OPTLENS_CALL_LIMIT:-60}")
+        self.assertEqual(env["OPTLENS_SOLVER"], "${OPTLENS_SOLVER:-auto}")
+
+    def test_the_instructions_say_how_to_load_deferred_tools(self):
+        # Claude Code defers the tools; agents that searched for bare names never saw a description
+        self.assertIn("mcp__plugin_optlens_optlens__open_model", prompts.SERVER_INSTRUCTIONS)
+        self.assertIn("deferred", prompts.SERVER_INSTRUCTIONS)
+
 
 if __name__ == "__main__":
     unittest.main()

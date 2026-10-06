@@ -12,6 +12,12 @@ The path can be an .lp or .mps file, or the Python file that builds a Pyomo, gur
 model.py:name for a named model or a no-argument builder); a Python file is run up to its first solve call, so open
 only the user's own code. The answer says which solvers are installed and which one will run.
 
+Load the tools before using them: a client may list them as deferred, with names only. Load them by the names the
+client lists, which carry a prefix (in Claude Code mcp__plugin_optlens_optlens__open_model, or mcp__optlens__open_model
+when the server was added by hand), at least open_model, the tools you plan to call and run_python, whose description
+lists every engine method with its arguments and what a solve returns. Then call them as described instead of
+probing the API.
+
 Model context (the shared vocabulary): open_model shows the model's saved context, what each constraint and variable
 family means and the documented result. Use those meanings and names in every answer. If it says there is no saved
 context, write it once before answering: read the document (or the model's code) and call save_model_context, mapping

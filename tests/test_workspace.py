@@ -40,6 +40,17 @@ class TestCodeWorkspace(unittest.TestCase):
         finally:
             ws.close()
 
+    def test_a_longer_solve_limit_is_kept_inside_the_call_timeout(self):
+        # the MCP server's OPTLENS_CALL_LIMIT=300: solves past the usual 60 s, still 10 s inside the call
+        for timeout, solve_limit, expect in ((290, 285, ["280.0", "275.0"]), (50, 45, ["40.0", "40.0"])):
+            ws = CodeWorkspace(str(MODEL), Path(tempfile.mkdtemp()), timeout=timeout, solve_limit=solve_limit)
+            try:
+                out, err = ws.run_python("print(session.time_limit, session.large_mip_iis_budget)")
+                self.assertFalse(err, out)
+                self.assertEqual(out.split()[:2], expect)
+            finally:
+                ws.close()
+
     def test_engine_calls_are_recorded_for_the_attribution_check(self):
         self.run_ok("print(session.try_options(options=[{'label': 'a', 'changes': [{'action': 'set_rhs', 'name': 'resource[Carlos]', 'upper': 2}]}]))\nx = 1")
         calls = self.ws.last_engine_calls

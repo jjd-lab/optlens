@@ -50,6 +50,17 @@ class TestMcpServer(unittest.TestCase):
 
         self.assertEqual(build_server().create_initialization_options().instructions, prompts.SERVER_INSTRUCTIONS)
 
+    def test_the_call_limit_sets_every_limit_together(self):
+        from optlens.mcp_server import call_limits
+
+        self.assertEqual(call_limits(""), (50.0, 45.0, 40.0))  # within the 60 s of Claude Desktop and similar clients
+        self.assertEqual(call_limits("300"), (290.0, 285.0, 280.0))  # the Claude Code CLI waits longer
+        self.assertEqual(call_limits("5"), (20.0, 15.0, 10.0))  # at least 30 s
+        for bad in ("five minutes", "nan"):
+            self.assertEqual(call_limits(bad), (50.0, 45.0, 40.0))
+        with mock.patch.dict(os.environ, {"OPTLENS_CALL_LIMIT": "120"}):
+            self.assertEqual(call_limits(), (110.0, 105.0, 100.0))
+
     def test_run_python_keeps_variables_and_has_the_engine(self):
         from optlens.mcp_server import State
 

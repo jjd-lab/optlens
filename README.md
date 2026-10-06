@@ -101,7 +101,9 @@ Install as above (it puts `optlens-mcp` on your PATH), then connect once; the ag
 | **Any other MCP client** | run `optlens-mcp` as a stdio server |
 
 The command must be on the PATH the agent sees; give the full path to `optlens-mcp` (for example `.venv/bin/optlens-mcp`)
-if it is not. `OPTLENS_SOLVER` (`highs`, `scip`, `gurobi` or `auto`) chooses the solver once.
+if it is not. `OPTLENS_SOLVER` (`highs`, `scip`, `gurobi` or `auto`) chooses the solver once. Each tool call answers within
+`OPTLENS_CALL_LIMIT` seconds (default 60, the timeout of clients such as Claude Desktop); clients that wait longer, like
+the Claude Code CLI, can set it higher (`300` gives slow MIP solves about 5 minutes).
 
 Then ask: *"Why is `plan.mps` infeasible, and what fixes it?"* The agent opens the model, writes its context once
 (what each constraint and variable family means, as JSON in `.optlens/context/` that you can review and commit), and

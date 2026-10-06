@@ -1,6 +1,14 @@
 # Changelog
 
 ## 0.0.1 (unreleased, 2026-09-30)
+- `OPTLENS_CALL_LIMIT` (seconds per MCP tool call, default 60, at least 30) sets the server's limits together: solves
+  15 s less, a large MIP's IIS search 20 s less, `run_python` calls 10 s less, and `run_python`'s session solves inside
+  that. The Claude Code CLI waits longer than 60 s for a tool call, so its users can give slow MIP solves minutes; the
+  plugin passes the variable through. The 60 s default keeps clients that stop at 60 s (Claude Desktop) working.
+- The server's instructions and the plugin's skill say to load the tools before the first call: Claude Code defers
+  them, and agents that searched for bare names (`open_model`) found nothing, worked without the descriptions and spent
+  3-8 calls per session on `dir()` and `inspect.signature` (in a 2026-10-05 trial, `save_model_context` failed its
+  first call in all four runs).
 - Found in a trial on a 53k-row MILP (2,470 binaries) that no solver finishes in minutes (2026-10-05):
   - A MIP result carries the solver's bound (`SolveResult.bound`, `.gap`; HiGHS, SCIP and Gurobi). A plan not proven
     optimal is reported with its bound and gap, and an objective change between two such plans with the range the

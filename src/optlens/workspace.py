@@ -69,10 +69,12 @@ class CodeWorkspace:
     """Parent side: starts the worker, sends snippets, restarts it after a timeout."""
 
     def __init__(self, model_path: str, workdir: Path, doc_path: str | None = None, timeout: float | None = None,
-                 confine: list[str] | None = None, prefer: str | None = None, only_prefer: bool = False):
+                 confine: list[str] | None = None, prefer: str | None = None, only_prefer: bool = False,
+                 solve_limit: float | None = None):
         self.model_file = str(Path(model_path).resolve())
         self.doc_file = str(Path(doc_path).resolve()) if doc_path else ""
         self.timeout = timeout  # per call; None: TIMEOUT (read at call time)
+        self.solve_limit = solve_limit  # the session's per-solve limit; None: TIME_LIMIT. Kept inside the call's timeout
         # confine: the code may read and write only inside the working directory, these extra paths (a pack, the
         # model and document) and Python's own installation, and may not start other programs (for testing an agent,
         # which must not find tools or answers elsewhere on disk). None: no limits, as for a user's own machine.
@@ -86,6 +88,8 @@ class CodeWorkspace:
         self._start()
 
     def _start(self) -> None:
+        from optlens.session import TIME_LIMIT
+
         key = secrets.token_bytes(16)
         listener = Listener(authkey=key)  # a Unix socket, or a named pipe on Windows
         keep = ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "GRB_LICENSE_FILE", "OPTLENS_SOLVER", "PYTHONPATH",
@@ -99,7 +103,8 @@ class CodeWorkspace:
                                                       *([self.doc_file] if self.doc_file else []), *self.confine])
         env.update(MODEL_FILE=self.model_file, MODEL_DOC=self.doc_file, CODE_WS_ADDR=listener.address,
                    CODE_WS_KEY=key.hex(), CODE_WS_DOC=self.doc_file,
-                   CODE_WS_SOLVE_LIMIT=str(max(1.0, (self.timeout or TIMEOUT) - SOLVE_MARGIN)))
+                   CODE_WS_SOLVE_LIMIT=str(max(1.0, min(self.solve_limit or TIME_LIMIT,
+                                                        (self.timeout or TIMEOUT) - SOLVE_MARGIN))))
         if self.prefer:
             env.update(CODE_WS_PREFER=self.prefer, CODE_WS_ONLY_PREFER="1" if self.only_prefer else "")
         with open(self.workdir / "worker.log", "a") as log:
@@ -214,7 +219,7 @@ def _worker() -> None:
     limit = float(os.environ.pop("CODE_WS_SOLVE_LIMIT", TIME_LIMIT))
     ns = {"session": Session({"v0": Version(od.load(os.environ["MODEL_FILE"]), None, "original model")},
                              os.environ.pop("CODE_WS_DOC") or None, prefer=prefer or chosen_solver(), only_prefer=only,
-                             time_limit=min(TIME_LIMIT, limit), large_mip_iis_budget=min(LARGE_MIP_IIS_BUDGET, limit)),
+                             time_limit=limit, large_mip_iis_budget=max(min(LARGE_MIP_IIS_BUDGET, limit), limit - 5)),
           "od": od, "np": np, "MODEL_FILE": os.environ["MODEL_FILE"], "MODEL_DOC": os.environ["MODEL_DOC"],
           "TOOL_DOCS": {t["name"]: t["description"] for t in TOOLS + MULTI_MODEL_TOOLS}}
     engine_calls: list[dict] = []

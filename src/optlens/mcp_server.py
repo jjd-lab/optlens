@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import re
 import threading
 import time
@@ -78,7 +79,25 @@ SAVE_MODEL_CONTEXT = {
 }
 
 
-RUN_PYTHON_LIMIT = 50.0  # per run_python call: inside the 60 s per tool call of MCP clients such as Claude Desktop
+DEFAULT_CALL_LIMIT = 60.0  # the per-call timeout of many MCP clients (Claude Desktop, the TypeScript SDK)
+MIN_CALL_LIMIT = 30.0
+
+
+def call_limits(value: str | None = None) -> tuple[float, float, float]:
+    """(run_python's call timeout, the solve limit, a large MIP's IIS budget) for a tool call that must answer within
+    OPTLENS_CALL_LIMIT seconds (``value``, else the environment; default 60, at least 30). The Claude Code CLI waits
+    longer than 60 s for a tool call, so its users can allow slow solves minutes."""
+    raw = os.environ.get("OPTLENS_CALL_LIMIT", "") if value is None else value
+    try:
+        limit = float(raw) if raw.strip() else DEFAULT_CALL_LIMIT
+    except ValueError:
+        limit = DEFAULT_CALL_LIMIT
+    limit = max(MIN_CALL_LIMIT, limit) if limit == limit else DEFAULT_CALL_LIMIT  # NaN reads as unset
+    return limit - 10.0, limit - 15.0, limit - 20.0
+
+
+# per run_python call; per solve; a large MIP's IIS search (the result says when it stopped short: "reduced")
+RUN_PYTHON_LIMIT, CALL_SOLVE_LIMIT, CALL_IIS_BUDGET = call_limits()
 RUN_PYTHON = {
     "name": "run_python",
     "description": tool_description(RUN_PYTHON_LIMIT, note=(
@@ -86,8 +105,6 @@ RUN_PYTHON = {
         "separate. After a time-out the process restarts and its variables are gone. ")),
     "input_schema": {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"]},
 }
-CALL_SOLVE_LIMIT = 45.0  # per solve; many MCP clients stop a tool call at 60 s (Claude Desktop; not the Claude Code CLI)
-CALL_IIS_BUDGET = 40.0   # a large MIP's IIS search; the result says when it stopped short ("reduced")
 
 
 def available_solvers() -> list[str]:
@@ -131,7 +148,8 @@ class State:
         md = od.load(f"{p}{sep}{attr}")
         # the document, else a Python model's own code, is what the context is written from
         doc = Path(document).expanduser().resolve() if document else p if p.suffix == ".py" else None
-        # many MCP clients stop waiting for a tool call after 60 s: solves and large searches stop in time to answer
+        # many MCP clients stop waiting for a tool call after 60 s (OPTLENS_CALL_LIMIT): solves and large searches
+        # stop in time to answer
         prefer, only = preferred_solver(solver)
         self.session = Session({"v0": Version(md, None, "original model")}, str(doc) if doc else None,
                                prefer=prefer, only_prefer=only, time_limit=CALL_SOLVE_LIMIT,
@@ -175,7 +193,7 @@ class State:
 
                 self.workspace = CodeWorkspace(self.model_spec, Path(tempfile.mkdtemp(prefix="optlens-ws-")),
                                                str(self.doc) if self.doc else None, timeout=RUN_PYTHON_LIMIT,
-                                               prefer=self.session.prefer, only_prefer=self.session.only_prefer)
+                                               solve_limit=CALL_SOLVE_LIMIT, prefer=self.session.prefer, only_prefer=self.session.only_prefer)
             t0 = time.time()
             out, err = self.workspace.run_python(code)
             return f"{out}\n[{time.time() - t0:.1f} s]", err
