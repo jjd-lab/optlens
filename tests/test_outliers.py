@@ -124,6 +124,21 @@ class TestPatternBreaks(unittest.TestCase):
         flags = [f for f in pattern_breaks(md) if f["kind"] == "objective coefficient"]
         self.assertEqual([f["name"] for f in flags], ["A367"])
 
+    def test_a_cost_far_off_its_familys_band_is_one_flag(self):
+        # the F44 trial: freight varies by lane (0.6-3.2), one lane at 0.0084 on every product and week
+        rng = np.random.default_rng(0)
+        lanes = {(p, d): rng.uniform(0.6, 3.2) for p in range(4) for d in range(6)}
+        lanes[2, 3] = 0.0084
+        cols = [(p, d, k) for p, d in lanes for k in range(5)]
+        md = replace(model([1] * len(cols)), obj=np.array([lanes[p, d] for p, d, _ in cols]),
+                     col_names=tuple(f"ship[p{p},dc{d},sku{k}]" for p, d, k in cols))
+        [flag] = [f for f in pattern_breaks(md) if f["kind"] == "objective coefficient"]
+        self.assertEqual((flag["name"], flag["value"]), ("ship[p2,dc3,sku0]", 0.0084))
+        self.assertIn("4 more columns", flag["reason"])
+        # costs spread over decades by design are no band to be off
+        spread = replace(md, obj=np.array([10.0 ** (j % 4) for j in range(len(cols))]))
+        self.assertEqual([f for f in pattern_breaks(spread) if f["kind"] == "objective coefficient"], [])
+
     def test_power_of_ten_coefficient_among_identical_rows(self):
         rows = [[1, 1, -1, 0]] * 4 + [[10, 1, -1, 0]]
         md = anonymous(rows, ["="] * 5, [0] * 5)

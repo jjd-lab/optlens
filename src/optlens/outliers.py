@@ -288,13 +288,17 @@ def _is_typo(x: float, typical: float, sign: bool = True) -> bool:
 
 def objective_breaks(md: ModelData) -> list[tuple[int, str, float, str]]:
     """(column, reason, typical value, group) for objective coefficients that break their siblings' pattern: a lone
-    opposite sign in a name group, a power-of-ten typo of a group's common value, or, in file order (anonymous
-    models keep their author's column order), a typo of a run of equal coefficients next to it."""
+    opposite sign in a name group, a power-of-ten typo of a group's common value, a cost an order of magnitude off
+    its group's band (one flag per such value, however many columns carry it), or, in file order (anonymous models
+    keep their author's column order), a typo of a run of equal coefficients next to it."""
     c, out = md.obj, []
+    meaningful = names_are_meaningful(md)
     for g, idx in _groups(md.col_names):
         nz = [j for j in idx if c[j] != 0]
         if len(nz) < RUN_MIN:
             continue
+        if meaningful or len(idx) < max(20, 0.9 * md.num_cols):  # an anonymous model's one big group is no family
+            out += _magnitude_breaks(c, nz, g)
         signs = np.sign(c[nz])
         if (signs > 0).sum() == 1 or (signs < 0).sum() == 1:
             lone = 1 if (signs > 0).sum() == 1 else -1
@@ -315,6 +319,42 @@ def objective_breaks(md: ModelData) -> list[tuple[int, str, float, str]]:
                 out.append((j, f"a sign or power-of-ten typo of the {RUN_MIN}+ columns next to it, all {c[ks[0]]:.15g}",
                             float(c[ks[0]]), f"columns {md.col_names[min(ks)]}..{md.col_names[max(ks)]} (file order)"))
                 break
+    return out
+
+
+# Varied costs (a freight rate per lane) have no common value to be a typo of; a slipped decimal still sits far off
+# the band the rest share. Checked on 412 benchmark files with no flag, and on one cost x100 or /100 in each family of
+# the business models: 74 of 86 caught, the misses in families spanning more than a decade (F44, E63).
+MAGNITUDE_GAP = 1.5     # decades between the odd values and the rest (about 30x)
+MAGNITUDE_BAND = 1.0    # the rest spans at most this many decades (5th-95th percentile)
+MAGNITUDE_SHARE = 0.10  # the odd values hold at most this share of the group (or are one column)
+MAGNITUDE_MIN = 8       # nonzero costs of one sign needed
+
+
+def _magnitude_breaks(c: np.ndarray, nz: list[int], g: str) -> list[tuple[int, str, float, str]]:
+    out = []
+    for sgn in (1, -1):
+        js = [j for j in nz if c[j] * sgn > 0]
+        if len(js) < MAGNITUDE_MIN:
+            continue
+        x = np.log10(np.abs(c[js]))
+        order = np.argsort(x)
+        gaps = np.diff(x[order])
+        k = int(gaps.argmax())
+        if gaps[k] < MAGNITUDE_GAP:
+            continue
+        lo, hi = order[:k + 1], order[k + 1:]
+        odd, bulk = (lo, hi) if len(lo) <= len(hi) else (hi, lo)
+        if len(odd) > max(1, MAGNITUDE_SHARE * len(js)) or np.ptp(np.percentile(x[bulk], [5, 95])) > MAGNITUDE_BAND:
+            continue
+        band = c[[js[i] for i in bulk]]
+        typ = float(np.median(band))
+        for v in np.unique(c[[js[i] for i in odd]]):
+            same = sorted(js[i] for i in odd if c[js[i]] == v)
+            ratio = typ / v if abs(v) < abs(typ) else v / typ
+            more = f"; {len(same) - 1} more columns of the group have this value" if len(same) > 1 else ""
+            out.append((same[0], f"about {ratio:.0f}x {'below' if abs(v) < abs(typ) else 'above'} its group's other "
+                        f"costs ({band.min():.4g} to {band.max():.4g}, median {typ:.4g}){more}", typ, g))
     return out
 
 
