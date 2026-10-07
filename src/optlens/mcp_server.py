@@ -288,7 +288,9 @@ class State:
 
     def _call(self, name: str, args: dict) -> tuple[str, bool]:
         if name != "open_model" and self.session is None:
-            return "no model is open: call open_model with the path of an .lp, .mps or .py file first", True
+            return ("no model is open: the server may have restarted (a resumed conversation starts a new one): call "
+                    "open_model with the path of an .lp, .mps or .py file; on the same file it brings back the earlier "
+                    "session's versions"), True
         if name == "run_python":
             try:
                 return self.run_python(str(args.get("code", "")))

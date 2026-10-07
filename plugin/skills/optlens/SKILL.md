@@ -10,7 +10,14 @@ Work through the tools, not by reading the model file: real LP and MPS files run
 same facts in a few lines. Open the model first with open_model(path), adding document if a file describes the model.
 The path can be an .lp or .mps file, or the Python file that builds a Pyomo, gurobipy or PuLP model (model.py, or
 model.py:name for a named model or a no-argument builder); a Python file is run up to its first solve call, so open
-only the user's own code. The answer says which solvers are installed and which one will run.
+only the user's own code. The answer says which solvers are installed and which one will run. open_model reads .lp,
+.mps and .gz files itself; read a document such as model.md with the client's file-reading tool (Read in Claude Code),
+not by shelling out (cat, gzip -dc), which asks for permission and depends on the shell (Git Bash on Windows).
+
+Resumed conversations: each one starts a new server. open_model on the same model brings back the versions an earlier
+session made ("restored N versions"): when it does, tell the user, and check version_history before saying something
+was not done earlier. A tool that answers "no model is open" means the server restarted: call open_model on the same
+file, which restores the earlier versions.
 
 Load the tools before using them: a client may list them as deferred, with names only. Load them by the names the
 client lists, which carry a prefix (in Claude Code mcp__plugin_optlens_optlens__open_model, or mcp__optlens__open_model

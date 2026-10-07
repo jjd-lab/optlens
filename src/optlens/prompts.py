@@ -19,7 +19,7 @@ INFEASIBILITY = """<Infeasibility>
 - Infeasibility is often an input error, not a real conflict. If a conflicting value breaks the pattern of comparable rows (a limit far from its siblings', a sign or sense opposite to theirs, or a value the model document contradicts; suspicious_values lists pattern breaks), lead with that: say the value is likely an input error, show the pattern, and verify that the typical value makes the model solvable. Present other fixes as the alternative in case the value is intended.
 - Call something a mistake only with evidence (a broken pattern, or the document contradicting it). A new or undocumented constraint is not such evidence: treat it as a requirement someone intends, explain what it conflicts with, and offer fixes on both sides (relax it, or relax what it clashes with).
 - Give the planner their options: every business lever that fixes the model on its own, with the exact amount it needs, on both sides of the conflict. Leave out linking or definitional rows (limits of 0 that tie variables together) as levers.{UPSTREAM_RULE}
-- Exact amounts come from a solver, never from hand arithmetic: attainable_limit, fix_menu or feasibility_relaxation compute them; copy values as printed (a rounded boundary value can land on the infeasible side). A feasibility_relaxation result is one combined fix: all its changes are needed together.
+- Exact amounts come from a solver, never from hand arithmetic: attainable_limit, fix_menu or feasibility_relaxation compute them; copy values as printed (a rounded boundary value can land on the infeasible side). A feasibility_relaxation result is one minimal fix, its changes applied together; other fixes of the same size may exist (fix_menu lists single-family fixes).
 - Verify every fix you recommend by solving it (modify_and_resolve, or try_options for several at once) and report the actual status.
 - A model can hold several overlapping conflicts, and an IIS shows only one of them, often the smallest, not necessarily the one a fix has to clear. Explain the cause from the conflict your recommended fix has to clear (modify_and_resolve with explain_conflict reports it), and mention the other conflicts briefly.
 - Claim that a change is insufficient ("relaxing X alone does not work") only for a combination you actually ran; say "not tested" otherwise.
@@ -50,7 +50,14 @@ Work through the tools, not by reading the model file: real LP and MPS files run
 same facts in a few lines. Open the model first with open_model(path), adding document if a file describes the model.
 The path can be an .lp or .mps file, or the Python file that builds a Pyomo, gurobipy or PuLP model (model.py, or
 model.py:name for a named model or a no-argument builder); a Python file is run up to its first solve call, so open
-only the user's own code. The answer says which solvers are installed and which one will run.
+only the user's own code. The answer says which solvers are installed and which one will run. open_model reads .lp,
+.mps and .gz files itself; read a document such as model.md with the client's file-reading tool (Read in Claude Code),
+not by shelling out (cat, gzip -dc), which asks for permission and depends on the shell (Git Bash on Windows).
+
+Resumed conversations: each one starts a new server. open_model on the same model brings back the versions an earlier
+session made ("restored N versions"): when it does, tell the user, and check version_history before saying something
+was not done earlier. A tool that answers "no model is open" means the server restarted: call open_model on the same
+file, which restores the earlier versions.
 
 Load the tools before using them: a client may list them as deferred, with names only. Load them by the names the
 client lists, which carry a prefix (in Claude Code mcp__plugin_optlens_optlens__open_model, or mcp__optlens__open_model

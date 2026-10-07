@@ -169,7 +169,7 @@ TOOLS = [
     {
         "name": "version_history",
         "description": "What a version contains: the chain of versions from the original model to it, each with its description, its own changes, and its status and objective if solved. Versions branch: any version (v0 too) can be the base of a new change, so use this to say which changes a plan includes and which it does not.",
-        "input_schema": {"type": "object", "properties": {"version": {"type": "string"}}, "required": ["version"]},
+        "input_schema": {"type": "object", "properties": {"version": {"type": "string", "description": "Default: the latest version."}}},
     },
     {
         "name": "marginal_value",
@@ -479,7 +479,8 @@ class Session:
             self._keep(vid, md)
             return md
 
-    def version_history(self, version: str) -> str:
+    def version_history(self, version: str | None = None) -> str:
+        version = version or next(reversed(self.versions), "v0")  # the latest (E66: an agent called it without one)
         chain = self.lineage(version)
         changes = sum(len(self.get(v).changes) for v in chain)
         lines = [f"{version}: {len(chain) - 1} step(s) and {changes} change(s) from {chain[0]}"]
