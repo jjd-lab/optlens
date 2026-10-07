@@ -1,6 +1,26 @@
 # Changelog
 
 ## 0.0.1 (unreleased, 2026-09-30)
+- From the first Windows run (Python 3.12 and 3.13, and a full Gurobi license through a Compute Server):
+  - An installed gurobipy that cannot run (no license, or a version the license server rejects: "No compatible runtime
+    available for version 13.0.3") no longer blocks `auto`: Gurobi is checked once with a one-variable solve and left
+    out if it fails, `open_model` says why and shows the gurobipy version, and a license or start-up error in a solve
+    falls back to HiGHS or SCIP like the size limit (`optlens.SolverUnusable`). A user who chose Gurobi is still asked
+    first. Tests skip on `optlens.gurobi_usable()` rather than on gurobipy being installed (16 failed there).
+  - `sensitivity_report` uses the version's own solve instead of solving it again (at 279k rows the second solve timed
+    out right after the first had finished in 30 s). It and `marginal_value` take a `time_limit` in the MCP server,
+    and a result cut short by a limit suggests a larger one, or Gurobi when it can run.
+  - `feasibility_relaxation` calls its result a minimal fix, saying other minimal fixes of the same size may exist
+    (fix_menu lists single-family fixes), instead of "all required together": Gurobi spread a change over four rows
+    where one row alone, by the same total, was enough.
+  - Resumed conversations: the instructions and skill tell the agent to say when `open_model` restored versions and to
+    check `version_history` before saying something was not done (an agent said no comparison had been run after 12
+    versions came back); `version_history()` defaults to the latest version; "no model is open" says the server may
+    have restarted and that `open_model` on the same file restores the versions. The skill says `open_model` reads
+    `.lp.gz` itself and to read documents with Read, not `cat` or `gzip -dc`.
+  - Docs: the `__main__` guard in scripts that solve, and why (Windows `spawn` re-runs a script without it in every
+    solver process); gurobipy must match the user's Gurobi; installing from a local copy where GitHub cannot be
+    reached; a permissions allowlist for the plugin's tools; the sandbox's steps in PowerShell.
 - A large MIP's solve and its solve from a starting plan run side by side, and the first to finish wins: a large but
   easy model no longer waits for a plan it does not need (an 837k-row model took 48 s with the plan first, 28 s
   without; now the same as without), while a hard one still gets the plan (a 45 s gap of 3 % instead of 68 %). The

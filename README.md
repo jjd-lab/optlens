@@ -16,12 +16,14 @@ pip install "optlens[scip,mcp] @ git+https://github.com/jjd-lab/optlens"   # cor
 ```
 
 To run the quickstart below or the tests, clone the repository and install it from the clone
-(`git clone https://github.com/jjd-lab/optlens && cd optlens && pip install ".[scip,mcp]"`).
+(`git clone https://github.com/jjd-lab/optlens && cd optlens && pip install ".[scip,mcp]"`). On a network that cannot
+reach GitHub (a proxy, a VPN), copy the source over another way (a zip of the repository) and install from that folder:
+`pip install "<folder>[scip,mcp]"`, and for the Claude Code plugin `claude plugin marketplace add <folder>`.
 
 | extra | adds |
 |---|---|
 | `scip` | SCIP (pyscipopt): a second open-source solver, with a native MIP IIS |
-| `gurobi` | gurobipy: Gurobi, bring your own license |
+| `gurobi` | gurobipy: Gurobi, bring your own license. Its version must match your Gurobi: a Compute Server or token server rejects a newer client ("No compatible runtime available"), so install that major version, e.g. `pip install "gurobipy==12.*"`. `open_model` shows the installed gurobipy version |
 | `pyomo`, `pulp` | load Pyomo and PuLP models |
 | `mcp` | the MCP server `optlens-mcp` and the Claude Code plugin |
 
@@ -40,8 +42,9 @@ if __name__ == "__main__":  # solves run in worker processes, which start by re-
     print(s.modify_and_resolve(changes=[{"action": "set_rhs", "name": "resource[Monika]", "upper": 1}]))
 ```
 
-Save it as a file and run it from the repository root; the `if __name__ == "__main__":` guard is needed on every
-platform. Every `Session` method returns text, and `optlens.session.TOOLS` holds the matching JSON schemas for an
+Save it as a file and run it from the repository root. Keep the `if __name__ == "__main__":` guard in any script that
+solves: solves run in worker processes, and on Windows (which starts them with `spawn`) each one re-imports the script,
+so without the guard the script re-runs in every solver process. Every `Session` method returns text, and `optlens.session.TOOLS` holds the matching JSON schemas for an
 agent. A session also covers feasibility relaxation, what-if edits as versions, why-not questions, sensitivity and
 marginal values, suspicious data values, and comparisons between versions or models.
 
@@ -72,8 +75,10 @@ Gurobi, each model goes to HiGHS or SCIP (a larger MIP's first solve races both)
   limit), so each solve runs in a worker process that is stopped at the limit.
 - **Gurobi does every step itself.** A Gurobi session solves, computes IIS, relaxes, ranges and checks on Gurobi; no
   step is handed to another solver. If you chose Gurobi and it cannot run a model (not installed, or over the
-  size-limited license), the tool stops and says so instead of switching. Under `auto` it uses Gurobi when gurobipy
-  is installed and falls back to HiGHS or SCIP for a model Gurobi cannot run, and says so.
+  size-limited license), the tool stops and says so instead of switching. Under `auto` it uses Gurobi when it can
+  run here (checked once with a one-variable solve: an installed gurobipy with no usable license, or a version your
+  license server rejects, is left out, and `open_model` says why) and falls back to HiGHS or SCIP for a model Gurobi
+  cannot run, and says so.
 - **HiGHS and SCIP stand in for each other** where only one can do a step (HiGHS has no MIP IIS; SCIP does), or
   when one gives no verdict within its limit (the other tries once), and the result names the solver that did it.
 - **Every IIS is checked.** A solver's IIS whose constraints are feasible on their own is rejected and rebuilt by
@@ -141,7 +146,8 @@ git clone https://github.com/jjd-lab/optlens && optlens/scripts/sandbox.sh ~/opt
 ~/optlens-try/start.sh          # log in on the first start; the questions are in ~/optlens-try/HOW-TO.md
 ```
 
-It needs bash, Python 3.11+ and Claude Code (macOS or Linux; on Windows, WSL). `--project PATH` puts your own model
+It needs bash, Python 3.11+ and Claude Code (macOS or Linux; on Windows, WSL, or the PowerShell steps in
+[plugin/README.md](https://github.com/jjd-lab/optlens/blob/main/plugin/README.md#windows)). `--project PATH` puts your own model
 there instead. It is a separate setup, not a security sandbox (see Security
 above); delete the folder to remove it.
 
