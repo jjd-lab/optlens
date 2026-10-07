@@ -222,6 +222,79 @@ def race(md: ModelData, backends: list, time_limit: float = 60.0, start: np.ndar
     return winner or fallback or (backends[0], SolveResult("TIME_LIMIT"))
 
 
+class Running:
+    """``fn(*args)`` started in its own solver process, for a caller that runs several at once and keeps the first
+    answer: ``conn`` for multiprocessing.connection.wait, ``result()`` once it is ready (("ok" | "err", value), or
+    ("timeout", None) after ``seconds``), ``kill()`` to stop it. Large models get a fresh process, as in
+    _with_deadline."""
+
+    def __init__(self, fn, args, seconds: float):
+        import time as _time
+
+        md = next((a for a in args if isinstance(a, ModelData)), None)
+        self._keep = md is None or md.A.nnz <= _KEEP_MAX_NNZ
+        with _IDLE_LOCK:
+            w = _IDLE.pop() if _IDLE and self._keep else None
+        self.w = w if w is not None and w.proc.is_alive() else _Worker()
+        self.w.conn.send((fn, args))
+        self.conn = self.w.conn
+        self.deadline = _time.time() + seconds
+        self.value = None
+
+    def result(self, timeout: float = 0.0):
+        import time as _time
+
+        if self.value is None:
+            if self.conn.poll(max(0.0, min(timeout, self.deadline - _time.time()))):
+                try:
+                    self.value = self.conn.recv()
+                except EOFError:  # the process died without a result (solver crash, killed for memory)
+                    self.value = ("err", RuntimeError("solver process exited with no result"))
+                self.w.calls += 1
+                if self._keep and self.value[0] == "ok" and self.w.calls < _MAX_CALLS:
+                    with _IDLE_LOCK:
+                        if len(_IDLE) < _MAX_IDLE:
+                            _IDLE.append(self.w)
+                            self.w = None
+            elif _time.time() >= self.deadline:
+                self.value = ("timeout", None)
+            if self.value is not None:
+                self.kill()
+        return self.value
+
+    def kill(self):
+        if self.w is not None:
+            self.w.kill()
+            self.w = None
+
+
+class _InProcess:
+    """A backend's solve in the calling process, for code that already runs inside a solver process (which may not
+    start others); that process's own deadline bounds it."""
+
+    def __init__(self, backend: "Backend"):
+        self.backend = backend
+
+    def solve(self, md: ModelData, time_limit: float = 60.0, start=None) -> SolveResult:
+        return self.backend._solve(md, time_limit, start)
+
+
+def plan_then_solve(backend: "Backend", lp_backend: "Backend", md: ModelData, time_limit: float,
+                    budget: float) -> tuple[SolveResult, "StartingPlan | None"]:
+    """In one solver process: a starting plan for the MIP ``md`` from ``lp_backend`` (starting_plan, within
+    ``budget``), then ``backend``'s solve from it with the rest of ``time_limit``. The plan stands in for the result
+    when the solver ends at its limit with nothing better. Returns (result, plan or None)."""
+    import time as _time
+
+    t0 = _time.time()
+    plan = starting_plan(md, _InProcess(lp_backend), budget)
+    r = backend._solve(md, max(1.0, time_limit - (_time.time() - t0)), None if plan is None else plan.x)
+    if plan is not None and r.status in ("TIME_LIMIT", "OTHER") and (
+            r.obj is None or (r.obj > plan.obj if md.minimize else r.obj < plan.obj)):
+        r = SolveResult("TIME_LIMIT", obj=plan.obj, x=plan.x, bound=r.bound)
+    return r, plan
+
+
 class Backend:
     name = "base"
     # A licensed solver does every step itself: its user may run it because production or policy requires it, so an
