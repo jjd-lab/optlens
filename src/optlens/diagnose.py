@@ -109,14 +109,16 @@ def feas_relax(md: ModelData, backend: Backend, relax_rows: bool = True, relax_b
     best_status = "skipped" if min_objective else None
     if min_objective and res.status == "OPTIMAL" and left >= 1:
         k = em.num_cols - md.num_cols
-        cap = float(res.obj)
+        # a cap at exactly the minimum can leave the solver no feasible plan (E80, HiGHS); the overshoot this slack
+        # allows is scaled back below
+        cap = float(res.obj) * (1 + 1e-9) + 1e-9
         q = None if md.Q is None else sp.bmat([[md.Q, None], [None, sp.csc_matrix((k, k))]], format="csc")
         best = replace(em, obj=np.concatenate([md.obj, np.zeros(k)]), obj_offset=md.obj_offset,
                        minimize=md.minimize, Q=q).add_row(
             "__total_change", {em.col_names[j]: float(em.obj[j]) for j in range(md.num_cols, em.num_cols)}, hi=cap)
         res2 = backend.solve(best, left)
         best_status = res2.status
-        if res2.status == "OPTIMAL":
+        if res2.status == "OPTIMAL" and res2.x is not None:
             res, objective = res2, float(res2.obj)
     relaxations = []
     for j in range(md.num_cols, em.num_cols):

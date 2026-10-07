@@ -401,7 +401,9 @@ class HiGHSBackend(Backend):
         h.run()
         status = self._STATUS.get(h.getModelStatus(), "OTHER")
         if h.getInfo().primal_solution_status != 2:  # 2 = feasible
-            return SolveResult(status)
+            # HiGHS can end OPTIMAL with no feasible plan (E80: a relaxation's second phase, its total capped at the
+            # first phase's minimum); callers read OPTIMAL as a plan in hand, so that is no verdict
+            return SolveResult("OTHER" if status == "OPTIMAL" else status)
         sol = h.getSolution()
         res = SolveResult(status, obj=h.getInfo().objective_function_value, x=np.array(sol.col_value),
                           bound=h.getInfo().mip_dual_bound if md.is_mip else None)

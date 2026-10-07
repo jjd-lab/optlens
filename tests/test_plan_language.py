@@ -86,6 +86,43 @@ class PlanLanguage(unittest.TestCase):
         r = od.feas_relax(two_ways(), od.BACKENDS["highs"], only={"cap_x", "cap_y"}, penalty=0.5, min_objective=True)
         self.assertAlmostEqual(sum(c["value"] for c in r.relaxations), 2.0)  # the change itself, not halved
 
+    def test_a_second_phase_without_a_plan_keeps_the_first(self):
+        # E80: HiGHS ended the best-plan phase OPTIMAL with no plan, and feas_relax read its objective (None)
+        highs = od.BACKENDS["highs"]
+
+        class NoPlanSecond:
+            calls = 0
+
+            def solve(self, md, time_limit):
+                self.calls += 1
+                return highs.solve(md, time_limit) if self.calls == 1 else od.SolveResult("OPTIMAL")
+
+        r = od.feas_relax(two_ways(), NoPlanSecond(), only={"cap_x", "cap_y"}, min_objective=True)
+        self.assertAlmostEqual(r.total_violation, 2.0)
+        self.assertIsNone(r.objective)
+
+    def test_highs_optimal_without_a_plan_is_no_verdict(self):
+        import highspy
+
+        class Info:
+            primal_solution_status = 1  # infeasible
+
+        class Fake:
+            def run(self):
+                pass
+
+            def getModelStatus(self):
+                return highspy.HighsModelStatus.kOptimal
+
+            def getInfo(self):
+                return Info()
+
+        bk = od.HiGHSBackend()
+        bk._highs = lambda md, time_limit: Fake()
+        res = bk._solve(two_ways(), 10.0)
+        self.assertEqual(res.status, "OTHER")
+        self.assertFalse(res.feasible)
+
     def test_fix_menu_reports_the_best_plan_for_each_lever(self):
         out = Session({"v0": Version(two_ways(), None, "original")}).fix_menu(families=["cap_x", "cap_y"])
         self.assertIn("cap_x: sufficient; total change 2 over 1 bounds; best plan with it: objective 22", out)

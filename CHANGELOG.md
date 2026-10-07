@@ -1,6 +1,9 @@
 # Changelog
 
 ## 0.0.1 (unreleased, 2026-09-30)
+- `feasibility_relaxation` no longer fails with a `TypeError` when HiGHS ends its best-plan phase OPTIMAL without a
+  plan (found on a 4.7k-row blending model): HiGHS reports that as no verdict, and the phase's cap on the total change
+  allows 1e-9 of slack.
 - The second look for a smaller IIS gets at least 30 s (within the call's allowance) instead of whatever the first
   search left; when there is no time at all, the note says a smaller conflict may exist. The MCP server deletes its
   `run_python` workspace's temp folder when the workspace closes and when the server stops.

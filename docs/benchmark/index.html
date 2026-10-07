@@ -367,7 +367,7 @@ scratch script every session.</p>
 <p>Hotel revenue-management models at 4 hotels × 365 nights (279,000 constraints, a 176 MB file) and 12 hotels × 365 nights
 (837,000 constraints, 530 MB), with injected errors; a second set links the hotels with group-wide constraints, so the model no
 longer splits into one hotel at a time.</p>
-<figure class="chart"><div class="legend"><span><i style="background:var(--series-1)"></i>optlens</span><span><i style="background:var(--series-2)"></i>bare (solver only)</span></div><svg viewBox="0 0 720 232" role="img" aria-label="Tool time on models too large to read"><text class="cat" x="0" y="38">hotel models (10)</text><rect class="bar" x="250" y="16" width="162.0" height="24" rx="4" fill="var(--series-1)"><title>optlens, hotel models (10): 26 min of tool time</title></rect><text class="val" x="420.0" y="33">26 min</text><rect class="bar" x="250" y="44" width="250.2" height="24" rx="4" fill="var(--series-2)"><title>bare (solver only), hotel models (10): 40 min of tool time</title></rect><text class="val" x="508.2" y="61">40 min</text><text class="note" x="716" y="38" text-anchor="end">&#8722;35%</text><text class="cat" x="0" y="112">linked hotel group (6)</text><rect class="bar" x="250" y="90" width="156.8" height="24" rx="4" fill="var(--series-1)"><title>optlens, linked hotel group (6): 25 min of tool time</title></rect><text class="val" x="414.8" y="107">25 min</text><rect class="bar" x="250" y="118" width="400.0" height="24" rx="4" fill="var(--series-2)"><title>bare (solver only), linked hotel group (6): 64 min of tool time</title></rect><text class="val" x="658.0" y="135">64 min</text><text class="note" x="716" y="112" text-anchor="end">&#8722;61%</text><text class="cat" x="0" y="186">conversations, linked group (2)</text><rect class="bar" x="250" y="164" width="126.4" height="24" rx="4" fill="var(--series-1)"><title>optlens, conversations, linked group (2): 20 min of tool time</title></rect><text class="val" x="384.4" y="181">20 min</text><rect class="bar" x="250" y="192" width="285.9" height="24" rx="4" fill="var(--series-2)"><title>bare (solver only), conversations, linked group (2): 46 min of tool time</title></rect><text class="val" x="543.9" y="209">46 min</text><text class="note" x="716" y="186" text-anchor="end">&#8722;56%</text></svg><figcaption>Total tool time per suite (models of 279,000 and 837,000 constraints); the percentage is optlens's saving.</figcaption></figure>
+<figure class="chart"><div class="legend"><span><i style="background:var(--series-1)"></i>optlens</span><span><i style="background:var(--series-2)"></i>bare (solver only)</span></div><svg viewBox="0 0 720 232" role="img" aria-label="Tool time on models too large to read"><text class="cat" x="0" y="38">hotel models (10)</text><rect class="bar" x="250" y="16" width="142.1" height="24" rx="4" fill="var(--series-1)"><title>optlens, hotel models (10): 23 min of tool time</title></rect><text class="val" x="400.1" y="33">23 min</text><rect class="bar" x="250" y="44" width="250.2" height="24" rx="4" fill="var(--series-2)"><title>bare (solver only), hotel models (10): 40 min of tool time</title></rect><text class="val" x="508.2" y="61">40 min</text><text class="note" x="716" y="38" text-anchor="end">&#8722;43%</text><text class="cat" x="0" y="112">linked hotel group (6)</text><rect class="bar" x="250" y="90" width="146.4" height="24" rx="4" fill="var(--series-1)"><title>optlens, linked hotel group (6): 24 min of tool time</title></rect><text class="val" x="404.4" y="107">24 min</text><rect class="bar" x="250" y="118" width="400.0" height="24" rx="4" fill="var(--series-2)"><title>bare (solver only), linked hotel group (6): 64 min of tool time</title></rect><text class="val" x="658.0" y="135">64 min</text><text class="note" x="716" y="112" text-anchor="end">&#8722;63%</text><text class="cat" x="0" y="186">conversations, linked group (2)</text><rect class="bar" x="250" y="164" width="181.5" height="24" rx="4" fill="var(--series-1)"><title>optlens, conversations, linked group (2): 29 min of tool time</title></rect><text class="val" x="439.5" y="181">29 min</text><rect class="bar" x="250" y="192" width="285.9" height="24" rx="4" fill="var(--series-2)"><title>bare (solver only), conversations, linked group (2): 46 min of tool time</title></rect><text class="val" x="543.9" y="209">46 min</text><text class="note" x="716" y="186" text-anchor="end">&#8722;37%</text></svg><figcaption>Total tool time per suite (models of 279,000 and 837,000 constraints); the percentage is optlens's saving.</figcaption></figure>
 
 <div class="table"><table>
 <thead>
@@ -381,24 +381,25 @@ longer splits into one hotel at a time.</p>
 <tbody>
 <tr>
 <td>hotel models (10 cases)</td>
-<td>26 min, $0.73</td>
+<td>23 min, $0.62</td>
 <td>40 min, $1.40</td>
 <td>10/10 / 10/10</td>
 </tr>
 <tr>
 <td>linked hotel group (6 cases)</td>
-<td>25 min, $0.53</td>
+<td>24 min, $0.30</td>
 <td>64 min, $0.86</td>
 <td>6/6 / 6/6</td>
 </tr>
 <tr>
 <td>planner conversations on the linked group (2, 9 turns)</td>
-<td>20 min, $0.40</td>
+<td>29 min, $0.38</td>
 <td>46 min, $0.60</td>
 <td>9/9 / 9/9</td>
 </tr>
 </tbody>
 </table></div>
+<p>optlens's time and cost are from a rerun on the release engine, one pass each (every case and turn right again).</p>
 <p>optlens finds the conflict from the solver's own proof of infeasibility, so it never needs the whole model: 13 to 37
 conflicting constraints out of 279,000-837,000, found in 4 to 58 seconds.</p>
 <h3 id="4-tools-code-or-plugin">4. Tools, code or plugin</h3>
