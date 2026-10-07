@@ -34,7 +34,7 @@ TIME_LIMIT = 60.0
 IIS_SOLVE_LIMIT = 60.0   # per solve inside an IIS search (LP: the whole HiGHS IIS)
 IIS_BUDGET = 300.0       # a whole IIS search; large MIPs stop "reduced"
 LARGE_MIP_ROWS = 500      # a MIP IIS search this size is slow: shorter default budget, and the result says so
-LARGE_IIS_ROWS = 200  # an IIS cut short at more rows than this names no conflict a reader can follow (E64: 3,319)
+LARGE_IIS_ROWS = 200  # an IIS with more rows than this names no conflict a reader can follow (E64: 3,319; E66: 721)
 FIX_CHECKS = 5           # suspicious_values solves the undo of at most this many flags, each and all together
 FIX_CHECK_BUDGET = 60.0  # seconds for all of those solves; the rest are listed unchecked
 LARGE_MIP_IIS_BUDGET = 60.0
@@ -762,13 +762,44 @@ class Session:
         large = v.md.is_mip and v.md.num_rows > LARGE_MIP_ROWS
         bk, budget = self._bk(v.md, solver or v.solver), self._limit(time_limit, self.large_mip_iis_budget if large else IIS_BUDGET)
         if v.iis_result is None:
-            if v.md.is_mip:
-                # A row-level MIP IIS of the full model doesn't finish on open-source solvers at this
-                # size; find the conflicting families first, then the IIS within them.
-                v.iis_result = od.family_first_iis(v.md, bk, min(IIS_SOLVE_LIMIT, budget), budget=budget)
-            else:
-                v.iis_result = ([], od.get_iis(v.md, bk, budget, time_budget=budget))
+            t0 = time.monotonic()
+            v.iis_result = self._find_iis(v.md, bk, budget)
+            if len(v.iis_result[1].rows) > LARGE_IIS_ROWS:
+                v.iis_result = self._smaller_iis(v.md, bk, v.iis_result, budget - (time.monotonic() - t0))
         return v.iis_result
+
+    @staticmethod
+    def _find_iis(md: od.ModelData, bk, budget: float) -> tuple[list[str], od.IIS]:
+        if md.is_mip:
+            # A row-level MIP IIS of the full model doesn't finish on open-source solvers at this
+            # size; find the conflicting families first, then the IIS within them.
+            return od.family_first_iis(md, bk, min(IIS_SOLVE_LIMIT, budget), budget=budget)
+        return [], od.get_iis(md, bk, budget, time_budget=budget)
+
+    def _smaller_iis(self, md: od.ModelData, bk, found: tuple[list[str], od.IIS], budget: float):
+        """A model has many conflicts and a solver returns one of them: Gurobi gave 721 rows (720 demand limits and
+        the floor) where HiGHS gave 13 (E66). Leave out the IIS's largest family and look again: a conflict among
+        the rest is a conflict of the model too, and replaces the first one if it is smaller."""
+        fams: dict[str, int] = {}
+        for r in found[1].rows:
+            fams[base_name(r)] = fams.get(base_name(r), 0) + 1
+        big = max(fams, key=fams.get)
+        if budget < 10 or fams[big] == len(found[1].rows):
+            return found
+        t0 = time.monotonic()
+        rest = md.drop_rows([n for n in md.row_names if base_name(n) == big])
+        if bk.solve(rest, max(1.0, budget / 3)).status not in ("INFEASIBLE", "INF_OR_UNBD"):
+            return found  # the large family is needed: no conflict without it
+        try:
+            other = self._find_iis(rest, bk, budget - (time.monotonic() - t0))
+        except Exception:  # a second search that fails leaves the first answer standing
+            return found
+        if not other[1].rows or len(other[1].rows) >= len(found[1].rows):
+            return found
+        note = (f"a smaller conflict, found with {big} left out; the first one the solver returned had "
+                f"{len(found[1].rows)} rows, {fams[big]} of them {big}")
+        other[1].note = f"{other[1].note}; {note}" if other[1].note else note
+        return other
 
     def has_solution(self, vid: str) -> bool:
         r = self.solved(vid)
@@ -1294,9 +1325,10 @@ class Session:
         # the screen and the relaxations share one time limit, so the whole menu returns within it
         start = time.monotonic()
 
-        def screen(fam):
+        def screen(fam):  # within the first third of the limit, however many wait for a solver
             rows = [n for n in md.row_names if base_name(n) == fam]
-            return fam, (bk.solve(md.drop_rows(rows), max(1.0, lim / 3)).status if rows else "OTHER")
+            left = start + lim / 3 - time.monotonic()
+            return fam, (bk.solve(md.drop_rows(rows), left).status if rows and left >= 1.0 else "OTHER")
 
         with ThreadPoolExecutor(max_workers=parallel_solves(md)) as pool:
             screened = dict(pool.map(screen, families))

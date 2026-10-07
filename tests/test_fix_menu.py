@@ -5,6 +5,7 @@ import numpy as np
 import scipy.sparse as sp
 
 import optlens as od
+from optlens.diagnose import base_name
 
 
 def toy(two_conflicts: bool) -> od.ModelData:
@@ -44,3 +45,28 @@ class TestFixMenu(unittest.TestCase):
         self.assertAlmostEqual(lo["new"], 3.0, places=9)   # x >= 5 relaxed down to the x <= 3 cap
         self.assertEqual((hi["side"], hi["current"]), ("upper", 3.0))
         self.assertAlmostEqual(hi["new"], 5.0, places=9)
+
+
+class SlowBackend(od.HiGHSBackend):
+    """Every solve runs to its time limit without an answer, like a remote Gurobi on a hard relaxation."""
+
+    def solve(self, md, time_limit=60.0, start=None):
+        import time
+
+        time.sleep(time_limit)
+        return od.SolveResult("TIME_LIMIT")
+
+
+class TestFixMenuDeadline(unittest.TestCase):
+    def test_queued_relaxations_share_the_menus_time_limit(self):
+        # E66: with fewer solver slots than families, each queued relaxation got the full limit (356 s against 60)
+        import time
+        from unittest import mock
+
+        md = toy(two_conflicts=True)
+        families = sorted({base_name(r) for r in md.row_names})
+        with mock.patch("optlens.diagnose.parallel_solves", return_value=1):
+            t0 = time.monotonic()
+            menu = od.fix_menu(md, SlowBackend(), families, time_limit=1.5)
+        self.assertLess(time.monotonic() - t0, 3.0)  # was (families + 1) x 1.5 s
+        self.assertTrue(all(e["status"] == "TIME_LIMIT" for e in menu))

@@ -91,3 +91,27 @@ class TestSolverRouting(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSmallerIIS(unittest.TestCase):
+    def test_a_huge_iis_is_replaced_by_a_smaller_conflict(self):
+        # E66: Gurobi returned 721 rows (720 demand limits and the floor) where a 13-row conflict exists
+        n = 10
+        A = sp.csr_matrix(np.vstack([np.ones(n), np.eye(n), np.ones(n)]))
+        md = od.ModelData(
+            name="m", minimize=True, obj=np.ones(n), obj_offset=0.0, A=A,
+            row_lo=np.array([20.0] + [-od.INF] * (n + 1)), row_hi=np.array([od.INF] + [1.0] * n + [5.0]),
+            col_lb=np.zeros(n), col_ub=np.full(n, od.INF), is_int=np.zeros(n, bool), col_names=tuple(f"x{i}" for i in range(n)),
+            row_names=("floor", *(f"cap[{i}]" for i in range(n)), "total"))
+        big = od.IIS(rows=["floor", *(f"cap[{i}]" for i in range(n))], method="gurobi:computeIIS")
+        real, calls = od.get_iis, []
+
+        def first_big(*args, **kwargs):
+            calls.append(1)
+            return big if len(calls) == 1 else real(*args, **kwargs)
+
+        s = Session({"v0": Version(md, None, "original")})
+        with mock.patch.object(ses, "LARGE_IIS_ROWS", 5), mock.patch.object(od, "get_iis", side_effect=first_big):
+            _, iis = s.iis("v0")
+        self.assertEqual(sorted(iis.rows), ["floor", "total"])
+        self.assertIn("found with cap left out; the first one the solver returned had 11 rows", iis.note)

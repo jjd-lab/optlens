@@ -458,14 +458,20 @@ def fix_menu(md: ModelData, backend: Backend, families: list[str] | None = None,
         else:
             families = sorted({base_name(r) for r in get_iis(md, backend, time_limit).rows})
     linking = linking_families(md)
+    # one deadline for the whole menu: on a large model fewer solves run at once than there are families, and a
+    # relaxation that waits in the queue gets only what is left (E66: each got the full limit, 356 s against 60)
+    deadline = time.monotonic() + time_limit
 
     def one(only):
-        r = feas_relax(md, backend, time_limit=time_limit, only=only, min_objective=min_objective)
+        left = deadline - time.monotonic()
+        if left < 1.0:
+            return {"sufficient": False, "status": "TIME_LIMIT", "objective": None, "total_change": None, "changes": []}
+        r = feas_relax(md, backend, time_limit=left, only=only, min_objective=min_objective)
         return {"sufficient": r.total_violation is not None, "status": r.status, "objective": r.objective,
                 "total_change": r.total_violation, "changes": relaxed_bounds(md, r.relaxations)}
 
     with ThreadPoolExecutor(max_workers=parallel_solves(md, min(8, len(families) + 1))) as pool:
-        *per_family, overall = pool.map(one, [{f} for f in families] + [None])  # all at once: one time limit in all
+        *per_family, overall = pool.map(one, [{f} for f in families] + [None])
     menu = [{"family": f, "structural": f in linking, **res} for f, res in zip(families, per_family)]
     # business levers first: a linking row's "minimal change" is rarely something a planner can decide
     menu.sort(key=lambda e: (not e["sufficient"], e["structural"],

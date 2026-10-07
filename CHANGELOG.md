@@ -1,6 +1,11 @@
 # Changelog
 
 ## 0.0.1 (unreleased, 2026-09-30)
+- Python 3.12 or later (3.12 and 3.13 tested on Linux, macOS and Windows; 3.11 was never run, so it is not claimed).
+- `fix_menu` keeps one deadline for the whole menu: on a large model fewer solves run at once than there are families,
+  and a relaxation waiting for a solver now gets only what is left (with Gurobi on a 279k-row model the menu took 356 s
+  against a 60 s limit). An IIS of more than 200 rows is searched again with its largest family left out, and a smaller
+  conflict found that way replaces it (Gurobi returned 721 rows where a 13-row conflict exists).
 - From the first Windows run (Python 3.12 and 3.13, and a full Gurobi license through a Compute Server):
   - An installed gurobipy that cannot run (no license, or a version the license server rejects: "No compatible runtime
     available for version 13.0.3") no longer blocks `auto`: Gurobi is checked once with a one-variable solve and left
