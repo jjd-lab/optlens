@@ -574,7 +574,8 @@ class Session:
         fallback = ""
         if self.prefer:
             try:
-                r = self._started(md, lambda t, s: od.BACKENDS[self.prefer].solve(md, t, start=s))
+                r = self._started(md, lambda t, s: od.BACKENDS[self.prefer].solve(md, t, start=s),
+                                  backend=od.BACKENDS[self.prefer])
                 self.route = self.prefer
                 self._route_note_first(f"solver for this model: {self.prefer} (preferred); pass solver to override")
                 return r
@@ -612,41 +613,98 @@ class Session:
             self._route_note_first(f"solver for this model: {self.route} ({why}); pass solver to override")
             return r
         self.route_note = f"solver for this model: {self.route} ({why}); pass solver to override"
-        return self._started(md, lambda t, s: od.BACKENDS[self.route].solve(md, t, start=s))
+        return self._started(md, lambda t, s: od.BACKENDS[self.route].solve(md, t, start=s),
+                             backend=od.BACKENDS[self.route])
 
     def _route_note_first(self, note: str) -> None:
         """The routing note, before what the solve itself noted (a starting plan)."""
         self.route_note = f"{note}; {self.route_note}" if self.route_note else note
 
-    def _started(self, md: od.ModelData, solve, limit: float | None = None) -> od.SolveResult:
+    def _started(self, md: od.ModelData, solve, limit: float | None = None, backend=None) -> od.SolveResult:
         """``solve(time_limit, start)`` for one model within ``limit`` (default: the session's). A MIP of
-        START_MIN_ROWS or more first gets a starting plan built from its LP relaxation (od.starting_plan, within
-        START_SHARE of the limit; the solve gets the rest), and the note says whether the solver improved on it, which
-        tells an agent whether a longer time_limit could help; the start is kept if the solver returns nothing better
-        (a solve killed past its limit loses its plan)."""
+        START_MIN_ROWS or more also gets a starting plan built from its LP relaxation (od.starting_plan, within
+        START_SHARE of the limit; the solve from it gets the rest), and the note says whether the solver improved on
+        it, which tells an agent whether a longer time_limit could help; the start is kept if the solver returns
+        nothing better (a solve killed past its limit loses its plan). With one ``backend`` (every solve but a raced
+        first one) the plain solve runs alongside, and the first to finish wins: large easy models (837k-row hotel
+        models, solved cold in 7-43 s) do not wait 5-20 s for a plan they do not need (M10)."""
         limit = limit or self.time_limit
         if not (md.is_mip and md.num_rows >= START_MIN_ROWS):
             return solve(limit, None)
-        t0 = time.time()
         lp_backend = od.BACKENDS[self.prefer] if self.strict() else od.BACKENDS["highs"]
+        if backend is not None and od.backends.crossed_bounds(md) == ([], []):
+            return self._cold_or_planned(md, backend, lp_backend, limit)
+        t0 = time.time()
         plan = od.starting_plan(md, lp_backend, START_SHARE * limit)
         t1 = time.time()
         r = solve(max(1.0, limit - (t1 - t0)), None if plan is None else plan.x)
         if plan is None:
             return r
+        self._plan_note(md, plan, r, time.time() - t1)
+        worse = r.obj is None or (r.obj > plan.obj if md.minimize else r.obj < plan.obj)
+        if r.status in ("TIME_LIMIT", "OTHER") and worse:
+            return od.SolveResult("TIME_LIMIT", obj=plan.obj, x=plan.x, bound=r.bound)
+        return r
+
+    def _plan_note(self, md: od.ModelData, plan: od.StartingPlan, r: od.SolveResult, solve_seconds: float) -> None:
         better = r.obj is not None and abs(r.obj - plan.obj) > 1e-9 * max(1.0, abs(plan.obj)) and (
             r.obj < plan.obj if md.minimize else r.obj > plan.obj)
         if r.status == "OPTIMAL":
             then = f"then solved to optimality{f' ({r.obj:,.6g})' if better else ', keeping it'}"
         elif better:
-            then = f"the solver improved it to {r.obj:,.6g} in {time.time() - t1:.0f} s"
+            then = f"the solver improved it to {r.obj:,.6g} in {solve_seconds:.0f} s"
         else:
-            then = f"the solver found no better plan in {time.time() - t1:.0f} s"
-        note = f"started from a plan built from the {plan.how} ({plan.obj:,.6g}, {plan.seconds:.1f} s); {then}"
-        self.route_note = f"{self.route_note}; {note}" if self.route_note else note
-        worse = r.obj is None or (r.obj > plan.obj if md.minimize else r.obj < plan.obj)
-        if r.status in ("TIME_LIMIT", "OTHER") and worse:
-            return od.SolveResult("TIME_LIMIT", obj=plan.obj, x=plan.x, bound=r.bound)
+            then = f"the solver found no better plan in {solve_seconds:.0f} s"
+        self._note(f"started from a plan built from the {plan.how} ({plan.obj:,.6g}, {plan.seconds:.1f} s); {then}")
+
+    def _cold_or_planned(self, md: od.ModelData, backend, lp_backend, limit: float) -> od.SolveResult:
+        """The plain solve and the solve from a starting plan (od.plan_then_solve), each in its own solver process;
+        the first conclusive one wins and the other is stopped. When neither concludes in ``limit``, the better
+        plan."""
+        from multiprocessing.connection import wait
+
+        t0 = time.time()
+        seconds = limit + od.backends._GRACE
+        cold = od.backends.Running(backend._solve, (md, limit, None), seconds)
+        planned = od.backends.Running(od.backends.plan_then_solve,
+                                      (backend, lp_backend, md, limit, START_SHARE * limit), seconds)
+        runs = {"cold": cold, "planned": planned}
+        try:
+            while True:
+                waiting = [r.conn for r in runs.values() if r.value is None]
+                if waiting:
+                    wait(waiting, timeout=max(0.0, t0 + seconds - time.time()))
+                values = {k: r.result() for k, r in runs.items()}
+                results = {k: (v[1] if k == "cold" else v[1][0]) for k, v in values.items() if v and v[0] == "ok"}
+                done = [k for k, r in results.items() if r.status in ("OPTIMAL", "INFEASIBLE", "UNBOUNDED",
+                                                                       "INF_OR_UNBD")]
+                if done or all(v is not None for v in values.values()):
+                    break
+        finally:
+            for r in runs.values():
+                r.kill()
+        spent = time.time() - t0
+        plan = values["planned"][1][1] if "planned" in results else None
+        if not results:  # neither solved: the plain solve's error, as a solve without a plan would raise it
+            kind, err = values["cold"]
+            if kind == "err":
+                raise err
+            return od.SolveResult("TIME_LIMIT")
+        if done:
+            pick = "cold" if "cold" in done else "planned"
+        else:  # both ended without a verdict: the better plan
+            def key(k):
+                o = results[k].obj
+                return float("inf") if o is None else (o if md.minimize else -o)
+            pick = min(results, key=key)
+        r = results[pick]
+        if pick == "cold":
+            if plan is not None or "planned" not in results:
+                self._note(f"solved directly in {spent:.0f} s; the starting plan prepared alongside was not needed"
+                           if r.status in ("OPTIMAL", "INFEASIBLE", "UNBOUNDED", "INF_OR_UNBD")
+                           else f"the solve without a starting plan found the better plan in {spent:.0f} s")
+        elif plan is not None:
+            self._plan_note(md, plan, r, spent - plan.seconds)
         return r
 
     def get(self, vid: str) -> Version:
@@ -663,7 +721,7 @@ class Session:
                 v.result = self._route_first(v)
             else:
                 bk = self._bk(v.md, v.solver)
-                v.result = self._started(v.md, lambda t, s: bk.solve(v.md, t, start=s), time_limit)
+                v.result = self._started(v.md, lambda t, s: bk.solve(v.md, t, start=s), time_limit, backend=bk)
             v.result = self._other_verdict(vid, v, v.result, time.time() - t0)
         return v.result
 
@@ -682,7 +740,8 @@ class Session:
                        f"solver='{other}' to try it")
             return r
         try:
-            r2 = self._started(v.md, lambda t, s: od.BACKENDS[other].solve(v.md, t, start=s), left)
+            r2 = self._started(v.md, lambda t, s: od.BACKENDS[other].solve(v.md, t, start=s), left,
+                                backend=od.BACKENDS[other])
         except ImportError:
             return r
         if r2.x is None and r2.status in ("OTHER", "TIME_LIMIT"):

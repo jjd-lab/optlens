@@ -1,6 +1,10 @@
 # Changelog
 
 ## 0.0.1 (unreleased, 2026-09-30)
+- A large MIP's solve and its solve from a starting plan run side by side, and the first to finish wins: a large but
+  easy model no longer waits for a plan it does not need (an 837k-row model took 48 s with the plan first, 28 s
+  without; now the same as without), while a hard one still gets the plan (a 45 s gap of 3 % instead of 68 %). The
+  note says which one answered.
 - Try it without touching your own setup: `scripts/sandbox.sh DIR` builds a clean Claude Code with the plugin in one
   folder (its own venv from GitHub, its own Claude config, a project, `start.sh`), by default with the hotel pack's
   new `examples/try_week` (a week whose data load typed one group target as 1,200 for 120) and five questions.

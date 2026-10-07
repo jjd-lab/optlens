@@ -1,5 +1,6 @@
-"""Starting plans for large MIPs (M08, F46). Run from the repo root: python -m unittest tests.test_starting_plan"""
+"""Starting plans for large MIPs (M08, F46; run alongside the plain solve since M10). Run from the repo root: python -m unittest tests.test_starting_plan"""
 import importlib.util
+import time
 import unittest
 from unittest import mock
 
@@ -22,6 +23,16 @@ def lot_sizing() -> od.ModelData:
                         row_hi=np.array([0, 0, 30, 50.0]), col_lb=np.zeros(5),
                         col_ub=np.array([1, 1, od.INF, od.INF, od.INF]), is_int=np.array([1, 1, 0, 0, 0], bool),
                         col_names=("run1", "run2", "make1", "make2", "stock1"), row_names=("cap1", "cap2", "dem1", "dem2"))
+
+
+class SlowPlainMIP(od.HiGHSBackend):
+    """HiGHS whose MIP solve without a start takes 3 s longer: the plain solve of a hard model, which the solve from a
+    plan beats."""
+
+    def _solve(self, md, time_limit, start=None):
+        if md.is_int.any() and start is None:
+            time.sleep(3)
+        return super()._solve(md, time_limit, start)
 
 
 def odd_cycle() -> od.ModelData:
@@ -51,13 +62,27 @@ class TestStartingPlan(unittest.TestCase):
             r = bk.solve(md, 10, start=start)
             self.assertEqual((bk.name, r.status, r.obj), (bk.name, "OPTIMAL", 150.0))  # one run in week 1, 50 held: 100 + 50
 
-    def test_a_large_mip_starts_from_a_plan_and_says_so(self):
+    def test_a_large_mip_solved_directly_says_the_plan_was_not_needed(self):
         with mock.patch.object(sess, "START_MIN_ROWS", 1):
             s = Session({"v0": Version(lot_sizing(), None, "original")})
             r = s.solved("v0")
         self.assertEqual((r.status, r.obj), ("OPTIMAL", 150.0))
+        self.assertIn("solved directly in 0 s; the starting plan prepared alongside was not needed", s.route_note)
+
+    def test_a_large_mip_starts_from_a_plan_when_the_plain_solve_is_slower(self):
+        slow = SlowPlainMIP()
+        with mock.patch.object(sess, "START_MIN_ROWS", 1), mock.patch.dict(od.BACKENDS, {"highs": slow}):
+            s = Session({"v0": Version(lot_sizing(), None, "original")})
+            t0 = time.time()
+            r = s.solved("v0")
+        self.assertLess(time.time() - t0, 3)  # the plain solve was stopped, not waited for
+        self.assertEqual((r.status, r.obj), ("OPTIMAL", 150.0))
         self.assertIn("started from a plan built from the LP relaxation, integers rounded up (200, ", s.route_note)
         self.assertIn("then solved to optimality (150)", s.route_note)  # it improved on the start: says so
+
+    def test_plan_then_solve_runs_the_plan_and_the_solve_in_one_process(self):
+        r, plan = od.backends.plan_then_solve(od.HiGHSBackend(), od.HiGHSBackend(), lot_sizing(), 10, 2)
+        self.assertEqual((r.status, r.obj, plan.obj), ("OPTIMAL", 150.0, 200.0))
 
     def test_the_routing_note_keeps_the_start(self):
         # the first solve of a large MIP races HiGHS and SCIP; its routing note must not replace the start's
