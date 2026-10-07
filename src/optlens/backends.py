@@ -29,6 +29,11 @@ class LicenseLimit(Exception):
     """Gurobi's size-limited license can't optimize this model (over 2,000 vars or constraints)."""
 
 
+class SolverUnusable(LicenseLimit):
+    """Gurobi cannot run any model here: no license, or a gurobipy version its license server rejects ("No
+    compatible runtime available"). A LicenseLimit, so "auto" falls back to HiGHS or SCIP the same way."""
+
+
 class IISNotSupported(Exception):
     pass
 
@@ -479,7 +484,15 @@ class GurobiBackend(Backend):
         import gurobipy as gp
 
         def run(path):
-            with gp.Env(params={"OutputFlag": 0}) as env, gp.read(path, env=env) as m:
+            env = None
+            try:  # Gurobi that cannot start (no license, a version its server rejects) fails here, on any model
+                env = gp.Env(params={"OutputFlag": 0})
+                m = gp.read(path, env=env)
+            except gp.GurobiError as e:
+                if env is not None:
+                    env.dispose()
+                raise SolverUnusable(f"Gurobi cannot start: {e}") from e
+            with env, m:
                 m.Params.TimeLimit = float(time_limit)
                 m.Params.DualReductions = 0  # definitive INFEASIBLE vs UNBOUNDED
                 try:
@@ -487,6 +500,8 @@ class GurobiBackend(Backend):
                 except gp.GurobiError as e:
                     if e.errno == gp.GRB.Error.SIZE_LIMIT_EXCEEDED:
                         raise LicenseLimit(str(e)) from e
+                    if e.errno in _license_errnos(gp):
+                        raise SolverUnusable(f"Gurobi cannot run: {e}") from e
                     raise
         return _with_mps(md, run)
 
@@ -557,6 +572,66 @@ class GurobiBackend(Backend):
 
 
 BACKENDS = {b.name: b for b in (HiGHSBackend(), SCIPBackend(), GurobiBackend())}
+
+
+def _license_errnos(gp) -> set[int]:
+    """Gurobi's error codes that mean it cannot run at all here (license, license server, network)."""
+    names = ("NO_LICENSE", "NETWORK", "JOB_REJECTED", "CLOUD", "CSWORKER")
+    return {getattr(gp.GRB.Error, n) for n in names if hasattr(gp.GRB.Error, n)}
+
+
+def _gurobi_probe() -> str | None:
+    """In a solver process: None when Gurobi solves a one-variable model, else its error."""
+    import gurobipy as gp
+
+    try:
+        with gp.Env(params={"OutputFlag": 0}) as env, gp.Model(env=env) as m:
+            m.addVar(ub=1.0, obj=1.0)
+            m.optimize()
+        return None
+    except gp.GurobiError as e:
+        return f"GurobiError {e.errno}: {e}"
+
+
+GUROBI_PROBE_LIMIT = 30.0
+_GUROBI_PROBLEM: list = []  # the probe's answer, once per process
+
+
+def gurobi_problem() -> str | None:
+    """Why Gurobi cannot run here ("gurobipy not installed", no license, a version its license server rejects), or
+    None when it can. Found once per process by solving a one-variable model in a solver process, so a license
+    server that does not answer cannot block the caller. An installed gurobipy is not enough: in E66 a gurobipy its
+    Compute Server rejected was preferred under "auto" and every call failed."""
+    import importlib.util
+
+    if not _GUROBI_PROBLEM:
+        if importlib.util.find_spec("gurobipy") is None:
+            problem = "gurobipy not installed"
+        else:
+            try:
+                problem = _with_deadline(_gurobi_probe, (), GUROBI_PROBE_LIMIT)
+            except _TimedOut:
+                problem = f"no answer from Gurobi in {GUROBI_PROBE_LIMIT:.0f} s (license server unreachable?)"
+            except Exception as e:  # gurobipy that fails to import, a crashed process
+                problem = f"{type(e).__name__}: {e}"
+        _GUROBI_PROBLEM.append(problem)
+    return _GUROBI_PROBLEM[0]
+
+
+def gurobi_usable() -> bool:
+    """Gurobi can solve here (see gurobi_problem); tests that need it skip on this, not on gurobipy being installed."""
+    return gurobi_problem() is None
+
+
+def gurobipy_version() -> str | None:
+    """The installed gurobipy's version, or None: it must match the user's Gurobi (a Compute Server or token server
+    rejects a newer client)."""
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version("gurobipy")
+    except PackageNotFoundError:
+        return None
 
 
 @dataclass

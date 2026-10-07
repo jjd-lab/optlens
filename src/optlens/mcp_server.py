@@ -1,8 +1,9 @@
 """MCP server over optlens.session: `open_model` loads an LP/MPS file into a session, and every tool in
 `optlens.session.TOOLS` then works on it. Run as `optlens-mcp` (stdio); needs the `mcp` extra.
 
-Solver choice: OPTLENS_SOLVER=highs|scip|gurobi prefers that solver; unset or "auto" prefers Gurobi when gurobipy
-is installed (a user who licensed it likely runs it in production) and otherwise routes to HiGHS or SCIP per model.
+Solver choice: OPTLENS_SOLVER=highs|scip|gurobi prefers that solver; unset or "auto" prefers Gurobi when it can run
+here (a user who licensed it likely runs it in production; an installed gurobipy without a usable license is left out,
+and open_model says why) and otherwise routes to HiGHS or SCIP per model.
 A session on Gurobi does every step on Gurobi. Gurobi chosen by the user (OPTLENS_SOLVER or open_model's solver)
 that cannot run a model stops and asks; under "auto" it falls back to HiGHS or SCIP routing, and the first result
 says which solver ran and why. HiGHS and SCIP, both open source, may stand in for each other; results say so.
@@ -105,7 +106,8 @@ def call_limits(value: str | None = None) -> tuple[float, float, float, float]:
 # "reduced"); the most a tool's time_limit may ask for
 RUN_PYTHON_LIMIT, CALL_SOLVE_LIMIT, CALL_IIS_BUDGET, CALL_MAX_SOLVE = call_limits()
 CALL_LIMIT = RUN_PYTHON_LIMIT + 10.0
-LONGER = ("modify_and_resolve",)  # tools whose time_limit only this server offers (the bench's agents do not see it)
+# tools whose time_limit only this server offers (the bench's agents do not see it)
+LONGER = ("modify_and_resolve", "marginal_value", "sensitivity_report")
 
 
 def limits_line() -> str:
@@ -144,12 +146,24 @@ RUN_PYTHON = {
 
 
 def available_solvers() -> list[str]:
-    return ["highs"] + [name for name, mod in (("scip", "pyscipopt"), ("gurobi", "gurobipy"))
-                        if importlib.util.find_spec(mod)]
+    """The solvers that can run here: Gurobi only when it solves (od.gurobi_problem), not just when installed."""
+    return (["highs"] + (["scip"] if importlib.util.find_spec("pyscipopt") else [])
+            + (["gurobi"] if od.gurobi_usable() else []))
+
+
+def solvers_line() -> str:
+    """open_model's "solvers installed" text: with the gurobipy version (it must match the user's Gurobi), and why an
+    installed Gurobi is not used."""
+    names = available_solvers()
+    text = ", ".join(f"gurobi (gurobipy {od.gurobipy_version()})" if n == "gurobi" else n for n in names)
+    if (problem := od.gurobi_problem()) and (gv := od.gurobipy_version()):
+        text += (f"; gurobipy {gv} is installed but Gurobi cannot run ({problem[:160]}), so it is not used unless "
+                 "chosen; its version must match the user's Gurobi (pip install \"gurobipy==<major>.*\")")
+    return text
 
 
 def preferred_solver(explicit: str | None = None) -> tuple[str | None, bool]:
-    """(the solver to prefer, whether the user chose it): their choice, else Gurobi when gurobipy is installed."""
+    """(the solver to prefer, whether the user chose it): their choice, else Gurobi when it can run here."""
     if choice := chosen_solver(explicit):
         return choice, True
     return ("gurobi" if "gurobi" in available_solvers() else None), False
@@ -221,7 +235,7 @@ class State:
             context = self._context(None)
         return (f"opened {p.name}: {md.num_rows} rows, {md.num_cols} columns"
                 f"{' (' + str(int(md.is_int.sum())) + ' integer)' if md.is_mip else ''}; solvers installed: "
-                f"{', '.join(available_solvers())}; preferred: {self.session.prefer or 'none (routed per model)'}\n"
+                f"{solvers_line()}; preferred: {self.session.prefer or 'none (routed per model)'}\n"
                 + (f"This session uses only {prefer}, the user's choice: in run_python solve with "
                    f"`od.BACKENDS['{prefer}']`, never another solver.\n" if self.session.strict() else "")
                 + self.session.get_model_overview() + restored + "\n" + limits_line() + "\n\n" + context)
@@ -274,7 +288,9 @@ class State:
 
     def _call(self, name: str, args: dict) -> tuple[str, bool]:
         if name != "open_model" and self.session is None:
-            return "no model is open: call open_model with the path of an .lp, .mps or .py file first", True
+            return ("no model is open: the server may have restarted (a resumed conversation starts a new one): call "
+                    "open_model with the path of an .lp, .mps or .py file; on the same file it brings back the earlier "
+                    "session's versions"), True
         if name == "run_python":
             try:
                 return self.run_python(str(args.get("code", "")))

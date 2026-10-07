@@ -1,6 +1,5 @@
 """A licensed solver (Gurobi) does every step itself; HiGHS and SCIP may stand in for each other and the result says so.
 Run from the repo root: python -m unittest tests.test_licensed_solver"""
-import importlib.util
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -11,7 +10,7 @@ import scipy.sparse as sp
 import optlens as od
 from optlens.session import Session, SolverUnavailable, Version
 
-HAS_GUROBI = importlib.util.find_spec("gurobipy") is not None
+HAS_GUROBI = od.gurobi_usable()  # installed is not enough: it needs a license that runs
 LP_MODEL = Path(__file__).resolve().parent / "fixtures/ex_milp_tutorial__rhs_tighten__0.mps"
 
 
@@ -35,7 +34,7 @@ def no_open_source():
         + [mock.patch.object(od.BACKENDS["highs"], "farkas_rows", side_effect=refuse)]
 
 
-@unittest.skipUnless(HAS_GUROBI, "gurobipy not installed")
+@unittest.skipUnless(HAS_GUROBI, "Gurobi cannot run here")
 class TestGurobiOnly(unittest.TestCase):
     def setUp(self):
         for p in no_open_source():

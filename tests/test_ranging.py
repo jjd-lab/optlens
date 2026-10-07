@@ -1,6 +1,5 @@
 """Sensitivity ranges: a row with slack can move its limit freely up to its activity; Gurobi gives the same ranges.
 Run from the repo root: python -m unittest tests.test_ranging"""
-import importlib.util
 import unittest
 
 import numpy as np
@@ -31,7 +30,7 @@ class TestRanging(unittest.TestCase):
         self.assertAlmostEqual(s.shadow_price[0], 2.0)
         self.assertEqual((s.rhs_range[0][0], s.rhs_range[1][0]), (0.0, 10.0))     # total: y alone carries it, to y_cap
 
-    @unittest.skipUnless(importlib.util.find_spec("gurobipy"), "gurobipy not installed")
+    @unittest.skipUnless(od.gurobi_usable(), "Gurobi cannot run here")
     def test_gurobi_gives_the_same_ranges(self):
         h, g = sensitivity(lp()), sensitivity(lp(), backend=od.BACKENDS["gurobi"])
         pairs = [(h.shadow_price, g.shadow_price), (h.reduced_cost, g.reduced_cost), *zip(h.rhs_range, g.rhs_range),

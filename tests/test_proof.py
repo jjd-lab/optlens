@@ -22,7 +22,7 @@ def knapsack(minimize: bool) -> od.ModelData:
 class TestBound(unittest.TestCase):
     def test_every_backend_reports_a_mip_bound_on_the_model_objective(self):
         for name in ("highs", "scip", "gurobi"):
-            if name != "highs" and importlib.util.find_spec({"scip": "pyscipopt", "gurobi": "gurobipy"}[name]) is None:
+            if (name == "scip" and importlib.util.find_spec("pyscipopt") is None) or (name == "gurobi" and not od.gurobi_usable()):
                 continue
             for minimize, best in ((True, 17.0), (False, 19.0)):
                 with self.subTest(solver=name, minimize=minimize):

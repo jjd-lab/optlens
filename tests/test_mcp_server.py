@@ -6,6 +6,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import optlens as od
+
 HAS_MCP = importlib.util.find_spec("mcp") is not None
 MODEL = Path(__file__).resolve().parent / "fixtures/ex_milp_tutorial__rhs_tighten__0.mps"
 
@@ -139,7 +141,7 @@ class TestMcpServer(unittest.TestCase):
         finally:
             state.close_workspace()
 
-    @unittest.skipUnless(importlib.util.find_spec("gurobipy"), "gurobipy not installed")
+    @unittest.skipUnless(od.gurobi_usable(), "Gurobi cannot run here")
     def test_gurobi_chosen_in_open_model_reaches_run_python(self):
         from optlens.mcp_server import State
 

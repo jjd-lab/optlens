@@ -99,6 +99,14 @@ class PlanLanguage(unittest.TestCase):
         self.assertIn("best plan at this minimal change: objective", out)
         self.assertRegex(out, r"also in the conflict, unchanged by this fix: (cap_y|need)")
 
+    def test_a_relaxation_is_one_minimal_fix_not_the_only_one(self):
+        # E66: Gurobi spread 4,031 over the floor and three demand rows, where the floor alone, by the same total, was
+        # enough; "all required together" read as if every change were needed
+        out = Session({"v0": Version(two_ways(), None, "original")}).feasibility_relaxation()
+        self.assertNotIn("required together", out)
+        self.assertIn("a minimal fix; other minimal fixes of the same size may exist (fix_menu lists single-family "
+                      "fixes)", out)
+
     def test_linking_families_are_rows_whose_limits_are_all_zero(self):
         self.assertEqual(od.linking_families(linked()), {"link"})
 

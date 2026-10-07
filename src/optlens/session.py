@@ -126,7 +126,7 @@ TOOLS = [
     },
     {
         "name": "feasibility_relaxation",
-        "description": "Minimal total change (sum of absolute RHS/bound changes) that makes an infeasible version feasible (one relaxation solve; slower than a plain solve on a large MIP). Returns every change needed, each with its current and suggested value; all are required together. Suggested values are exact: copy them as printed rather than rounding or recomputing them. only_families limits which constraint/variable families may change (others stay hard); relax_variable_bounds also allows variable bounds to move.",
+        "description": "Minimal total change (sum of absolute RHS/bound changes) that makes an infeasible version feasible (one relaxation solve; slower than a plain solve on a large MIP). Returns one minimal fix: its changes, applied together, each with its current and suggested value; other minimal fixes of the same total may exist (fix_menu lists single-family fixes). Suggested values are exact: copy them as printed rather than rounding or recomputing them. only_families limits which constraint/variable families may change (others stay hard); relax_variable_bounds also allows variable bounds to move.",
         "input_schema": {"type": "object", "properties": {
             "version": {"type": "string"},
             "only_families": {"type": "array", "items": {"type": "string"}},
@@ -169,7 +169,7 @@ TOOLS = [
     {
         "name": "version_history",
         "description": "What a version contains: the chain of versions from the original model to it, each with its description, its own changes, and its status and objective if solved. Versions branch: any version (v0 too) can be the base of a new change, so use this to say which changes a plan includes and which it does not.",
-        "input_schema": {"type": "object", "properties": {"version": {"type": "string"}}, "required": ["version"]},
+        "input_schema": {"type": "object", "properties": {"version": {"type": "string", "description": "Default: the latest version."}}},
     },
     {
         "name": "marginal_value",
@@ -479,7 +479,8 @@ class Session:
             self._keep(vid, md)
             return md
 
-    def version_history(self, version: str) -> str:
+    def version_history(self, version: str | None = None) -> str:
+        version = version or next(reversed(self.versions), "v0")  # the latest (E66: an agent called it without one)
         chain = self.lineage(version)
         changes = sum(len(self.get(v).changes) for v in chain)
         lines = [f"{version}: {len(chain) - 1} step(s) and {changes} change(s) from {chain[0]}"]
@@ -910,7 +911,7 @@ class Session:
         linking = od.linking_families(md)
         tag = lambda r: " [linking row, not a business lever]" if base_name(r["name"]) in linking else ""  # noqa: E731
         changes.sort(key=lambda r: bool(tag(r)))  # business levers first
-        lines = [f"status {res.status}; total change {_fmt(res.total_violation)}; {len(changes)} changes, all required together:"]
+        lines = [f"status {res.status}; total change {_fmt(res.total_violation)}; {len(changes)} change(s), applied together: a minimal fix; other minimal fixes of the same size may exist (fix_menu lists single-family fixes):"]
         lines += [f"  {r['name']}: {_bound_label(r)} {_fmt(r['current'])} -> {_fmt(r['new'])} (minimal change {_fmt(r['value'])}){tag(r)}"
                   for r in changes]
         if changes and all(tag(r) for r in changes):
@@ -1468,14 +1469,26 @@ class Session:
         return "\n".join(lines)
 
 
-    def marginal_value(self, constraint, version="v0", delta=1.0) -> str:
+    def _limit_hint(self, limit: float) -> str:
+        """What to try after a solve stopped at its limit: a longer one, or Gurobi when it can run here and is not
+        already the solver."""
+        hint = f"the solve stopped at its {limit:.0f} s limit; call again with a larger time_limit"
+        if self.route != "gurobi" and not self.strict() and od.gurobi_usable():
+            hint += (", or, if the user agrees, with Gurobi (installed here and often faster on large MIPs): open the "
+                     "model again with solver gurobi")
+        return hint
+
+    def marginal_value(self, constraint, version="v0", delta=1.0, time_limit=None) -> str:
         v = self.get(version)
         md = v.md
-        # the session's solver for all three solves (the default is SCIP for a MIP, which does not finish at 837k rows)
-        mv = sensitivity.marginal_value(md, constraint, float(delta), self.time_limit, base=self.solved(version),
+        limit = self._limit(time_limit, self.time_limit)
+        # the version's own solve is the base; the session's solver for the two shifted solves (the default is SCIP
+        # for a MIP, which does not finish at 837k rows)
+        mv = sensitivity.marginal_value(md, constraint, float(delta), limit, base=self.solved(version),
                                         backend=self._bk(md, v.solver))
         if mv["status"] != "OPTIMAL":
-            return f"version {version} is {mv['status']}; marginal value needs an optimal solution"
+            return (f"version {version} is {mv['status']}; marginal value needs an optimal solution"
+                    + (f" ({self._limit_hint(limit)})" if mv["status"] == "TIME_LIMIT" else ""))
         lines = [f"{constraint}: active {mv['side']} bound {_fmt(mv['bound'])}, activity {_fmt(mv['activity'])}, objective {_fmt(mv['objective'])}"]
         for sign, way in ((1, "up"), (-1, "down")):
             line = f"bound {_fmt(mv['bound'])} -> {_fmt(mv['bound'] + sign * float(delta))}: {mv[way + '_status']}"
@@ -1487,6 +1500,8 @@ class Session:
         if mv["per_unit_up"] is not None and mv["per_unit_down"] is not None and \
                 abs(mv["per_unit_up"] - mv["per_unit_down"]) > 1e-4 * max(1.0, abs(mv["per_unit_up"]), abs(mv["per_unit_down"])):
             lines.append("up and down values differ: the optimum is at a kink (degenerate or integer effect); no single shadow price describes it")
+        if "TIME_LIMIT" in (mv["up_status"], mv["down_status"]):
+            lines.append(f"no value where a re-solve hit TIME_LIMIT: {self._limit_hint(limit)}")
         return "\n".join(lines)
 
 
@@ -1524,12 +1539,15 @@ class Session:
                          + ("; ".join(parts) if parts else "no improving +/-1 move"))
         return "\n".join(lines)
 
-    def sensitivity_report(self, kind, version="v0", family=None, name_contains=None) -> str:
+    def sensitivity_report(self, kind, version="v0", family=None, name_contains=None, time_limit=None) -> str:
         v = self.get(version)
         md = v.md
-        s = sensitivity.sensitivity(md, self.time_limit, backend=self._bk(md, v.solver))
+        limit = self._limit(time_limit, self.time_limit)
+        base = self.solved(version)  # the version's own solve: at scale a second one may not finish
+        s = sensitivity.sensitivity(md, limit, backend=self._bk(md, v.solver), base=base)
         if s.status != "OPTIMAL":
-            return f"no sensitivity: status {s.status}"
+            return f"no sensitivity: status {s.status}" + (
+                f" ({self._limit_hint(limit)})" if "TIME_LIMIT" in s.status.upper().replace(" ", "_") else "")
         if md.is_mip:
             return self._mip_sensitivity(md, s, kind, family, name_contains)
         note = "RHS ranges unavailable for QP; " if s.rhs_range is None else ""
