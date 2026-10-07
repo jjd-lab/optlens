@@ -106,7 +106,8 @@ def call_limits(value: str | None = None) -> tuple[float, float, float, float]:
 # "reduced"); the most a tool's time_limit may ask for
 RUN_PYTHON_LIMIT, CALL_SOLVE_LIMIT, CALL_IIS_BUDGET, CALL_MAX_SOLVE = call_limits()
 CALL_LIMIT = RUN_PYTHON_LIMIT + 10.0
-LONGER = ("modify_and_resolve",)  # tools whose time_limit only this server offers (the bench's agents do not see it)
+# tools whose time_limit only this server offers (the bench's agents do not see it)
+LONGER = ("modify_and_resolve", "marginal_value", "sensitivity_report")
 
 
 def limits_line() -> str:

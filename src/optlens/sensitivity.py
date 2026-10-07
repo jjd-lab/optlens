@@ -115,14 +115,17 @@ def fix_integers(md: ModelData, x: np.ndarray) -> ModelData:
     return replace(md, col_lb=lb, col_ub=ub, is_int=np.zeros(md.num_cols, bool))
 
 
-def sensitivity(md: ModelData, time_limit: float = 60.0, backend=None) -> Sensitivity:
+def sensitivity(md: ModelData, time_limit: float = 60.0, backend=None, base=None) -> Sensitivity:
     """Duals and ranges at the optimum (for a MIP, of the continuous problem left with the integers fixed). HiGHS
     computes them, or a licensed ``backend`` (Gurobi) for every step. The ranges hold for the optimal basis: at a
-    degenerate optimum the shadow price can differ on each side of the current limit (marginal_value re-solves)."""
+    degenerate optimum the shadow price can differ on each side of the current limit (marginal_value re-solves).
+    ``base``: an optimal solve of ``md`` the caller already has, used instead of solving it again (E66: at 279k rows
+    the second MIP solve timed out right after the first had finished in 30 s)."""
     if not md.convex_objective():
         return Sensitivity("non-convex quadratic objective, which has no shadow prices; marginal_value re-solves")
     bk = backend if backend is not None and backend.licensed else default_backend(md)
-    base = bk.solve(md, time_limit)
+    if base is None or base.status != "OPTIMAL" or base.x is None:
+        base = bk.solve(md, time_limit)
     if base.status != "OPTIMAL":
         return Sensitivity(base.status)
     cont = fix_integers(md, base.x) if md.is_mip else md

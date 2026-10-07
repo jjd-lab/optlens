@@ -1468,14 +1468,26 @@ class Session:
         return "\n".join(lines)
 
 
-    def marginal_value(self, constraint, version="v0", delta=1.0) -> str:
+    def _limit_hint(self, limit: float) -> str:
+        """What to try after a solve stopped at its limit: a longer one, or Gurobi when it can run here and is not
+        already the solver."""
+        hint = f"the solve stopped at its {limit:.0f} s limit; call again with a larger time_limit"
+        if self.route != "gurobi" and not self.strict() and od.gurobi_usable():
+            hint += (", or, if the user agrees, with Gurobi (installed here and often faster on large MIPs): open the "
+                     "model again with solver gurobi")
+        return hint
+
+    def marginal_value(self, constraint, version="v0", delta=1.0, time_limit=None) -> str:
         v = self.get(version)
         md = v.md
-        # the session's solver for all three solves (the default is SCIP for a MIP, which does not finish at 837k rows)
-        mv = sensitivity.marginal_value(md, constraint, float(delta), self.time_limit, base=self.solved(version),
+        limit = self._limit(time_limit, self.time_limit)
+        # the version's own solve is the base; the session's solver for the two shifted solves (the default is SCIP
+        # for a MIP, which does not finish at 837k rows)
+        mv = sensitivity.marginal_value(md, constraint, float(delta), limit, base=self.solved(version),
                                         backend=self._bk(md, v.solver))
         if mv["status"] != "OPTIMAL":
-            return f"version {version} is {mv['status']}; marginal value needs an optimal solution"
+            return (f"version {version} is {mv['status']}; marginal value needs an optimal solution"
+                    + (f" ({self._limit_hint(limit)})" if mv["status"] == "TIME_LIMIT" else ""))
         lines = [f"{constraint}: active {mv['side']} bound {_fmt(mv['bound'])}, activity {_fmt(mv['activity'])}, objective {_fmt(mv['objective'])}"]
         for sign, way in ((1, "up"), (-1, "down")):
             line = f"bound {_fmt(mv['bound'])} -> {_fmt(mv['bound'] + sign * float(delta))}: {mv[way + '_status']}"
@@ -1487,6 +1499,8 @@ class Session:
         if mv["per_unit_up"] is not None and mv["per_unit_down"] is not None and \
                 abs(mv["per_unit_up"] - mv["per_unit_down"]) > 1e-4 * max(1.0, abs(mv["per_unit_up"]), abs(mv["per_unit_down"])):
             lines.append("up and down values differ: the optimum is at a kink (degenerate or integer effect); no single shadow price describes it")
+        if "TIME_LIMIT" in (mv["up_status"], mv["down_status"]):
+            lines.append(f"no value where a re-solve hit TIME_LIMIT: {self._limit_hint(limit)}")
         return "\n".join(lines)
 
 
@@ -1524,12 +1538,15 @@ class Session:
                          + ("; ".join(parts) if parts else "no improving +/-1 move"))
         return "\n".join(lines)
 
-    def sensitivity_report(self, kind, version="v0", family=None, name_contains=None) -> str:
+    def sensitivity_report(self, kind, version="v0", family=None, name_contains=None, time_limit=None) -> str:
         v = self.get(version)
         md = v.md
-        s = sensitivity.sensitivity(md, self.time_limit, backend=self._bk(md, v.solver))
+        limit = self._limit(time_limit, self.time_limit)
+        base = self.solved(version)  # the version's own solve: at scale a second one may not finish
+        s = sensitivity.sensitivity(md, limit, backend=self._bk(md, v.solver), base=base)
         if s.status != "OPTIMAL":
-            return f"no sensitivity: status {s.status}"
+            return f"no sensitivity: status {s.status}" + (
+                f" ({self._limit_hint(limit)})" if "TIME_LIMIT" in s.status.upper().replace(" ", "_") else "")
         if md.is_mip:
             return self._mip_sensitivity(md, s, kind, family, name_contains)
         note = "RHS ranges unavailable for QP; " if s.rhs_range is None else ""
