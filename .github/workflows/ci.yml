@@ -1,6 +1,6 @@
 name: ci
 # Lint and unit tests: HiGHS and SCIP only (no Gurobi license, no API keys). Every push and pull request that touches
-# code runs lint and Linux (Python 3.13 while the repo is private, to save minutes; put back "3.11", "3.12" when it
+# code runs lint and Linux (Python 3.13 while the repo is private, to save minutes; put back "3.12" when it
 # goes public, as public repos' minutes are free); macOS and Windows, which keep the engine platform-agnostic, run when
 # started by hand (Actions tab, "Run workflow"), before a release or after platform-sensitive changes (solver
 # processes, paths, file loading).
@@ -30,7 +30,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        python: ["3.13"]  # "3.11", "3.12" back at launch
+        python: ["3.13"]  # "3.12" back at launch
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:

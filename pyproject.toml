@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "optlens"
 version = "0.0.1"
 description = "Solver-agnostic diagnostics for LP/MILP models: IIS, feasibility relaxation, repair menus, sensitivity, what-if."
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = "Apache-2.0"
 readme = "README.md"
 authors = [{name = "Jessica Dong"}]
@@ -16,7 +16,6 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Mathematics",
@@ -48,7 +47,7 @@ optlens = ["py.typed"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]

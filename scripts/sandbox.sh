@@ -32,10 +32,10 @@ done
 
 command -v claude >/dev/null || { echo "Claude Code (claude) is not on PATH: https://claude.com/claude-code" >&2; exit 1; }
 PY=""
-for p in python3.13 python3.12 python3.11 python3; do
-  if command -v "$p" >/dev/null && "$p" -c 'import sys; sys.exit(sys.version_info < (3, 11))' 2>/dev/null; then PY=$p; break; fi
+for p in python3.13 python3.12 python3; do
+  if command -v "$p" >/dev/null && "$p" -c 'import sys; sys.exit(sys.version_info < (3, 12))' 2>/dev/null; then PY=$p; break; fi
 done
-[ -n "$PY" ] || { echo "optlens needs Python 3.11 or later" >&2; exit 1; }
+[ -n "$PY" ] || { echo "optlens needs Python 3.12 or later" >&2; exit 1; }
 if [ -e "$DIR" ] && [ -n "$(ls -A "$DIR" 2>/dev/null)" ]; then echo "$DIR exists and is not empty" >&2; exit 1; fi
 mkdir -p "$DIR/project"
 DIR=$(cd "$DIR" && pwd)

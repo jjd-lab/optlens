@@ -9,7 +9,7 @@ optlens works on a model that is already built. It does not write models.
 
 ## Install
 
-Python 3.11 or later. Not on PyPI yet; install from GitHub:
+Python 3.12 or later. Not on PyPI yet; install from GitHub:
 
 ```bash
 pip install "optlens[scip,mcp] @ git+https://github.com/jjd-lab/optlens"   # core: numpy, scipy, HiGHS
@@ -146,7 +146,7 @@ git clone https://github.com/jjd-lab/optlens && optlens/scripts/sandbox.sh ~/opt
 ~/optlens-try/start.sh          # log in on the first start; the questions are in ~/optlens-try/HOW-TO.md
 ```
 
-It needs bash, Python 3.11+ and Claude Code (macOS or Linux; on Windows, WSL, or the PowerShell steps in
+It needs bash, Python 3.12+ and Claude Code (macOS or Linux; on Windows, WSL, or the PowerShell steps in
 [plugin/README.md](https://github.com/jjd-lab/optlens/blob/main/plugin/README.md#windows)). `--project PATH` puts your own model
 there instead. It is a separate setup, not a security sandbox (see Security
 above); delete the folder to remove it.
