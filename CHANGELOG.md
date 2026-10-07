@@ -1,6 +1,10 @@
 # Changelog
 
 ## 0.0.1 (unreleased, 2026-09-30)
+- Looking up a row by name uses a cached dict, as columns already did: dropping a 262,800-row family from a 279k-row
+  model took about 560 s through `tuple.index` (found on Windows with Gurobi, where it held up `compute_iis` and
+  `fix_menu`). `fix_menu` counts its own IIS search against the call's allowance (calling it again gets the menu, the
+  IIS is kept), and a relaxation that runs out of time says what to try next.
 - Python 3.12 or later (3.12 and 3.13 tested on Linux, macOS and Windows; 3.11 was never run, so it is not claimed).
 - `fix_menu` keeps one deadline for the whole menu: on a large model fewer solves run at once than there are families,
   and a relaxation waiting for a solver now gets only what is left (with Gurobi on a 279k-row model the menu took 356 s

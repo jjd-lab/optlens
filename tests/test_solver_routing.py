@@ -115,3 +115,18 @@ class TestSmallerIIS(unittest.TestCase):
             _, iis = s.iis("v0")
         self.assertEqual(sorted(iis.rows), ["floor", "total"])
         self.assertIn("found with cap left out; the first one the solver returned had 11 rows", iis.note)
+
+
+class TestFixMenuCallAllowance(unittest.TestCase):
+    def test_the_iis_search_counts_against_the_calls_allowance(self):
+        # E74: through the server fix_menu first spent 48.7 s on the IIS, then took its full limit for the menu
+        import time
+
+        s = Session({"v0": Version(replace(lp(), col_ub=np.full(2, 0.5)), None, "original")}, max_time_limit=3.0)
+
+        def slow_iis(*args, **kwargs):
+            time.sleep(1.0)
+            return [], od.IIS(rows=["need"], method="highs:irreducible")
+
+        with mock.patch.object(s, "iis", side_effect=slow_iis):
+            self.assertIn("call fix_menu again", s.fix_menu())

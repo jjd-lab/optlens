@@ -936,7 +936,8 @@ class Session:
         if res.total_violation is None:
             scope = f" when only {sorted(only)} may change" if only else ""
             if res.status == "TIME_LIMIT":
-                return f"unknown{scope}: the relaxed model hit the time limit without a feasible point (not proof that none exists)"
+                return (f"unknown{scope}: the relaxed model hit the time limit without a feasible point (not proof that "
+                        f"none exists; {self._limit_hint(self._limit(time_limit, self.time_limit))})")
             return f"no relaxation found{scope}: relaxed model status {res.status}"
         changes = od.relaxed_bounds(md, res.relaxations)
         linking = od.linking_families(md)
@@ -1322,7 +1323,13 @@ class Session:
             return f"version {version} is {self.solved(version).status}; fix_menu needs an infeasible version"
         bk, lim = self._bk(md, solver or self.get(version).solver), self._limit(time_limit, self.time_limit)
         if families is None:  # the conflict's families (as od.fix_menu would pick them)
+            t0 = time.monotonic()
             families = self.iis(version, solver)[0] if md.is_mip else sorted({base_name(r) for r in self.iis(version, solver)[1].rows})
+            if self.max_time_limit is not None:  # a call has one allowance: the IIS search came out of it (E74: 48.7 s)
+                lim = min(lim, self.max_time_limit - (time.monotonic() - t0))
+                if lim < 5:
+                    return (f"the conflict's IIS took this call's time ({time.monotonic() - t0:.0f} s); it is kept, so "
+                            "call fix_menu again for the menu")
         from concurrent.futures import ThreadPoolExecutor
 
         # the screen and the relaxations share one time limit, so the whole menu returns within it
@@ -1347,7 +1354,8 @@ class Session:
             tag = " [likely linking, not a business lever]" if e["structural"] else ""
             if not e["sufficient"]:
                 if e["status"] == "TIME_LIMIT":  # no feasible point in time is not proof that none exists
-                    lines.append(f"{e['family']}{tag}: unknown (time limit reached before a feasible relaxation was found)")
+                    lines.append(f"{e['family']}{tag}: unknown (time limit reached before a feasible relaxation was found; "
+                                 f"{self._limit_hint(lim)})")
                 else:
                     lines.append(f"{e['family']}{tag}: NOT sufficient alone (relaxed model {e['status']})")
                 continue
