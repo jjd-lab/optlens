@@ -85,8 +85,8 @@ Gurobi, each model goes to HiGHS or SCIP (a larger MIP's first solve races both)
   removing constraints one at a time on the same solver. This guards against a known gurobipy 13.0.3 bug: `computeIIS` leaves out a
   one-variable row on a binary whose fractional limit rounds it to 0 (`160 open <= 100` with `open >= 1` returns
   `open >= 1` alone, which is feasible).
-- **Gurobi is tested on the size-limited license only** (2,000 constraints and 2,000 variables). Large models under a full
-  license, and Gurobi's IIS and relaxations at scale, are untested; reports are welcome.
+- **Gurobi is tested on small models and on one large one** (a 279k-row hotel model: solves, sensitivity, IIS,
+  relaxations and repair menus). Other large models are untested; reports are welcome.
 
 On large models (hundreds of thousands of constraints) the IIS search starts near the conflict, from HiGHS's infeasibility
 proof, instead of searching the whole model.

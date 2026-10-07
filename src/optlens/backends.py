@@ -601,7 +601,7 @@ def gurobi_problem() -> str | None:
     """Why Gurobi cannot run here ("gurobipy not installed", no license, a version its license server rejects), or
     None when it can. Found once per process by solving a one-variable model in a solver process, so a license
     server that does not answer cannot block the caller. An installed gurobipy is not enough: in E66 a gurobipy its
-    Compute Server rejected was preferred under "auto" and every call failed."""
+    license server rejected was preferred under "auto" and every call failed."""
     import importlib.util
 
     if not _GUROBI_PROBLEM:
