@@ -2,10 +2,12 @@
 Run from the repo root: python -m unittest tests.test_workspace"""
 import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
 
+import optlens as od
 from optlens import workspace
 from optlens.workspace import CodeWorkspace
 
@@ -122,6 +124,64 @@ class TestCodeWorkspace(unittest.TestCase):
             self.assertIn("True", self.run_ok("print('y' not in globals() and session is not None)"))
         finally:
             workspace.TIMEOUT = old
+
+
+    def test_code_running_at_the_limit_is_stopped_and_its_variables_kept(self):
+        old, workspace.TIMEOUT = workspace.TIMEOUT, 4.0
+        try:
+            self.run_ok("y = 1")
+            out, err = self.ws.run_python("print('started')\nwhile True:\n    y += 1")
+            self.assertTrue(err)
+            self.assertIn("started", out)
+            self.assertIn("stopped at 4 s, this call's limit", out)
+            self.assertNotIn("restarted", out)
+            self.assertIn("True", self.run_ok("print(y > 1)"))
+        finally:
+            workspace.TIMEOUT = old
+
+    def test_a_restarted_worker_keeps_the_base_solve(self):
+        self.run_ok("session.solved('v0')")
+        self.assertTrue((self.ws.workdir / "v0_result.npz").is_file())
+        old, workspace.TIMEOUT = workspace.TIMEOUT, 2.0
+        try:
+            out, _ = self.ws.run_python("import time\ntime.sleep(10)")
+            self.assertIn("restarted", out)
+            self.assertIn("True", self.run_ok("print(session.versions['v0'].result is not None)"))
+        finally:
+            workspace.TIMEOUT = old
+
+    def test_solves_get_what_is_left_of_the_call(self):
+        old, workspace.TIMEOUT = workspace.TIMEOUT, 30.0
+        try:  # 30 s less STEP_MARGIN and the kill grace: a solve may take at most 17 s of this call
+            out = self.run_ok("print(od.backends.fit(100.0) <= 17.0, session.solved('v0').status)")
+            self.assertIn("True OPTIMAL", out)
+            self.assertIn("got less time than asked", out)
+            self.assertNotIn("less time", self.run_ok("print(od.backends.fit(1.0))"))
+            out, err = self.ws.run_python("import time\nprint('first')\ntime.sleep(10)\n"
+                                          "od.BACKENDS['highs'].solve(session.get('v0').md, 60.0)")
+            self.assertTrue(err)
+            self.assertIn("first", out)
+            self.assertIn("ran out before the next solve or search could start", out)
+        finally:
+            workspace.TIMEOUT = old
+
+
+class TestStepDeadline(unittest.TestCase):
+    def tearDown(self):
+        od.backends.set_step_deadline(None)
+
+    def test_fit_keeps_what_fits_and_cuts_the_rest(self):
+        od.backends.set_step_deadline(time.time() + 30)
+        self.assertEqual(od.backends.fit(5.0), 5.0)
+        self.assertLess(od.backends.fit(100.0), 25.1)
+        self.assertEqual(len(od.backends.CUTS), 1)
+
+    def test_too_little_time_left_ends_the_step(self):
+        md = od.load(str(MODEL))
+        od.backends.set_step_deadline(time.time() + 12)
+        with self.assertRaises(od.StepTimeUsed):
+            od.BACKENDS["highs"].solve(md, 60.0)
+        self.assertEqual(od.BACKENDS["highs"].solve(md, 5.0).status, "OPTIMAL")  # a short solve still fits
 
 
 class TestConfinedWorkspace(unittest.TestCase):

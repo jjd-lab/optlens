@@ -25,6 +25,11 @@ import numpy as np
 
 TIMEOUT = 180.0
 SOLVE_MARGIN = 10.0  # seconds a call keeps past its session's solve limit: the solver's grace and the reply
+# Within one call (T s): solves and searches get at most what is left until T - STEP_MARGIN (backends.fit); code still
+# running at T - STOP_MARGIN is stopped and its variables kept; a worker silent at T + KILL_GRACE is restarted.
+STEP_MARGIN = 8.0
+STOP_MARGIN = 3.0
+KILL_GRACE = 5.0
 OUT_CAP = 10_000
 PRELOADED = ("session", "od", "np", "MODEL_FILE", "MODEL_DOC", "TOOL_DOCS")
 
@@ -55,7 +60,10 @@ def tool_description(timeout: float = TIMEOUT, note: str = "") -> str:
         "`MODEL_DOC`, the model and document paths. "
         "`od.BACKENDS[...].solve` solves from scratch; `session` methods start a MIP of 5,000+ rows from a plan built "
         "from its LP relaxation, far better on large MIPs, so solve versions of a large MIP through `session`. "
-        + note + "Do several steps in one call and print only what you need. Methods of `session` (full description: "
+        "The call's time is shared by everything in it: each solve or search gets at most what is left (the output "
+        "says when one got less than asked), and code still running at the limit is stopped with its variables kept. "
+        + note + "Do several quick steps in one call and print only what you need; give each long solve or search "
+        "(an IIS, a fix menu, a time_limit near the call's) its own call. Methods of `session` (full description: "
         "print(TOOL_DOCS['name'])):\n" + api_lines(TOOLS, Session))
 
 
@@ -97,7 +105,14 @@ class CodeWorkspace:
         self.proc = self.conn = None
         self.last_engine_calls: list[dict] = []  # the session methods the last snippet called, for the attribution check
         self._sent: set[str] = set()  # versions whose solve the worker has (run_python with a session)
+        self._starting = False  # a restarted worker still loading the model: the next call waits for it
         self._start()
+        self._await_ready()
+
+    def _await_ready(self) -> None:
+        if not self.conn.recv().get("ready"):
+            raise RuntimeError(f"code worker failed to start; see {self.workdir / 'worker.log'}")
+        self._starting = False
 
     def _start(self) -> None:
         from optlens.session import TIME_LIMIT
@@ -113,6 +128,7 @@ class CodeWorkspace:
         if self.confine is not None:
             env["CODE_WS_CONFINE"] = os.pathsep.join([str(self.workdir.resolve()), self.model_file,
                                                       *([self.doc_file] if self.doc_file else []), *self.confine])
+        env.update(CODE_WS_TIMEOUT=str(self.timeout or TIMEOUT))
         env.update(MODEL_FILE=self.model_file, MODEL_DOC=self.doc_file, CODE_WS_ADDR=listener.address,
                    CODE_WS_KEY=key.hex(), CODE_WS_DOC=self.doc_file,
                    CODE_WS_SOLVE_LIMIT=str(max(1.0, min(self.solve_limit or TIME_LIMIT,
@@ -121,12 +137,14 @@ class CodeWorkspace:
             # for more than the default, within the call's timeout less the margin and the edits (6,240 set_rhs changes
             # and their version took 5 s besides a 90 s solve in a 100 s call)
             env["CODE_WS_MAX_LIMIT"] = str(max(1.0, (self.timeout or TIMEOUT) - SOLVE_MARGIN - 5.0))
+        path = self.workdir / "v0_result.npz"
         if self.base is not None:
             route, r = self.base
-            path = self.workdir / "v0_result.npz"
-            np.savez(path, status=r.status, **{k: getattr(r, k) for k in ("obj", "x", "bound", "row_dual", "reduced_cost")
-                                                 if getattr(r, k) is not None})
-            env.update(CODE_WS_V0=str(path.resolve()), CODE_WS_ROUTE=route or "")
+            _save_result(path, r, route)
+        if path.is_file():  # the caller's solve of the original model, or the one a worker before a restart saved
+            route_file = path.with_suffix(".route")
+            env.update(CODE_WS_V0=str(path.resolve()), CODE_WS_V0_SAVED="1",
+                       CODE_WS_ROUTE=route_file.read_text() if route_file.is_file() else "")
         if self.prefer:
             env.update(CODE_WS_PREFER=self.prefer, CODE_WS_ONLY_PREFER="1" if self.only_prefer else "")
         with open(self.workdir / "worker.log", "a") as log:
@@ -141,8 +159,7 @@ class CodeWorkspace:
         finally:
             timer.cancel()
             listener.close()
-        if not self.conn.recv().get("ready"):
-            raise RuntimeError(f"code worker failed to start; see {self.workdir / 'worker.log'}")
+        self._starting = True
 
     def run_python(self, code: str, session=None) -> tuple[str, bool]:
         """Runs ``code``. With ``session`` (the MCP server's), the worker's session and it share their versions: the
@@ -153,10 +170,13 @@ class CodeWorkspace:
             msg["results"] = {vid: v.result for vid, v in session.versions.items()
                               if v.result is not None and vid not in self._sent}
             self._sent |= set(msg["results"])
+        limit = self.timeout or TIMEOUT
+        msg["timeout"] = limit
         try:
+            if self._starting:  # restarted after the last call: it loaded the model meanwhile, or is finishing
+                self._await_ready()
             self.conn.send(msg)
-            limit = self.timeout or TIMEOUT
-            if not self.conn.poll(limit):
+            if not self.conn.poll(limit + KILL_GRACE):  # the worker stops its own code at the limit; this is a hang
                 return self._restart(f"timed out after {limit:.0f} s"), True
             r = self.conn.recv()
         except (EOFError, OSError):  # the worker died (out of memory on an 837k-row model): restart it, like a time-out
@@ -171,6 +191,7 @@ class CodeWorkspace:
         return r["out"], r["error"]
 
     def _restart(self, why: str) -> str:
+        """A new worker, loading the model while the caller reads this answer; the next call waits for it."""
         self.close()
         self._start()
         self.last_engine_calls, self._sent = [], set()
@@ -183,6 +204,16 @@ class CodeWorkspace:
             self.proc.wait()
         if self.conn:
             self.conn.close()
+
+
+def _save_result(path: Path, r, route: str | None) -> None:
+    np.savez(path, status=r.status, **{k: getattr(r, k) for k in ("obj", "x", "bound", "row_dual", "reduced_cost")
+                                       if getattr(r, k) is not None})
+    path.with_suffix(".route").write_text(route or "")
+
+
+class _CallStopped(BaseException):  # raised in the worker's code at its call's limit (BaseException: code's own
+    pass                            # `except Exception` must not swallow it)
 
 
 def _cap(text: str) -> str:
@@ -229,12 +260,12 @@ def _confine(roots: list[str]) -> None:
 
 def _worker() -> None:
     import contextlib
+    import ctypes
     import difflib
     import functools
     import io
+    import time
     import traceback
-
-    import numpy as np
 
     import optlens as od
     from optlens.session import (
@@ -254,9 +285,13 @@ def _worker() -> None:
     # a solve that runs to its limit must still return inside the call's timeout, or the process restarts
     limit = float(os.environ.pop("CODE_WS_SOLVE_LIMIT", TIME_LIMIT))
     cap = os.environ.pop("CODE_WS_MAX_LIMIT", None)
+    call = float(os.environ.pop("CODE_WS_TIMEOUT", TIMEOUT))
+    iis_budget = max(min(LARGE_MIP_IIS_BUDGET, limit), limit - 5)
+    if not cap:  # no client ceiling: a large MIP's IIS may use the call, whose deadline bounds it (E77: at 60 s the
+        iis_budget = max(iis_budget, call - STEP_MARGIN - od.backends._GRACE - 2)  # 837k search did not finish)
     ns = {"session": Session({"v0": Version(od.load(os.environ["MODEL_FILE"]), None, "original model")},
                              os.environ.pop("CODE_WS_DOC") or None, prefer=prefer or chosen_solver(), only_prefer=only,
-                             time_limit=limit, large_mip_iis_budget=max(min(LARGE_MIP_IIS_BUDGET, limit), limit - 5),
+                             time_limit=limit, large_mip_iis_budget=iis_budget,
                              max_time_limit=float(cap) if cap else None),
           "od": od, "np": np, "MODEL_FILE": os.environ["MODEL_FILE"], "MODEL_DOC": os.environ["MODEL_DOC"],
           "TOOL_DOCS": {t["name"]: t["description"] for t in TOOLS + MULTI_MODEL_TOOLS}}
@@ -282,12 +317,23 @@ def _worker() -> None:
         _confine(confine.split(os.pathsep))
     base = set(ns) | {"__builtins__"}
     known: set[str] = set()  # versions whose solve the caller has
+    saved_v0 = bool(os.environ.pop("CODE_WS_V0_SAVED", ""))  # the base solve is on disk for a restarted worker
+    main = threading.get_ident()
+    stop_lock, running = threading.Lock(), [False]
+
+    def stop() -> None:  # at the call's limit: raise _CallStopped in the code, wherever it is
+        with stop_lock:
+            if running[0]:
+                ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_ulong(main), ctypes.py_object(_CallStopped))
+
     conn.send({"ready": True})
     while True:
         try:
             msg = conn.recv()
         except EOFError:
             return
+        except _CallStopped:  # a stop that landed just as the last call ended
+            continue
         buf, error = io.StringIO(), False
         session = ns["session"]
         if "versions" in msg:  # the caller's versions and solves (the MCP server's tools)
@@ -296,9 +342,37 @@ def _worker() -> None:
                 if vid in session.versions and session.versions[vid].result is None:
                     session.versions[vid].result = res
             known |= set(msg["results"])
+        limit = msg.get("timeout")
+        timer = None
+        if limit:
+            od.backends.set_step_deadline(time.time() + limit - STEP_MARGIN)
+            timer = threading.Timer(max(1.0, limit - STOP_MARGIN), stop)
+            timer.daemon = True
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
             try:
-                exec(compile(msg["code"], "<run_python>", "exec"), ns)
+                try:
+                    with stop_lock:
+                        running[0] = True
+                    if timer:
+                        timer.start()
+                    exec(compile(msg["code"], "<run_python>", "exec"), ns)
+                finally:
+                    with stop_lock:
+                        running[0] = False
+                        ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_ulong(main), None)  # one not yet raised
+                    if timer:
+                        timer.cancel()
+            except od.StepTimeUsed as e:
+                error = True
+                od.backends.kill_busy()
+                print(f"[this call's {limit:.0f} s ran out before the next solve or search could start ({e}): what "
+                      "printed above finished; variables, versions and solves are kept. Run that step in its own call]")
+            except _CallStopped:
+                error = True
+                running[0] = False
+                od.backends.kill_busy()
+                print(f"[stopped at {limit:.0f} s, this call's limit: what printed above finished; variables, versions "
+                      "and solves are kept. Give each long solve or search its own call]")
             except NameError as e:
                 error = True
                 traceback.print_exc(limit=-1)
@@ -309,6 +383,18 @@ def _worker() -> None:
             except BaseException:  # the agent's code may raise anything; it goes back as output
                 error = True
                 traceback.print_exc(limit=-3)
+            if od.backends.CUTS and not error:
+                asked, given = max(od.backends.CUTS, key=lambda c: c[0] - c[1])
+                print(f"[this call's {limit:.0f} s were shared: {len(od.backends.CUTS)} solve(s) or searches got less "
+                      f"time than asked (e.g. {asked:.0f} s asked, {given:.0f} s left); a result cut short says so. "
+                      "Give each long step its own call]")
+            od.backends.set_step_deadline(None)
+        if not saved_v0 and (r0 := session.versions["v0"].result) is not None and r0.x is not None:
+            try:  # a worker restarted after a time-out starts from it instead of solving the base again
+                _save_result(Path(os.getcwd()) / "v0_result.npz", r0, session.route)
+                saved_v0 = True
+            except OSError:
+                pass
         user = sorted(n for n in ns if n not in base and not n.startswith("_"))
         out = _cap(buf.getvalue()) + f"\n[in scope: {', '.join([*PRELOADED, *user])}]"
         made = {vid: v.result for vid, v in session.versions.items() if v.result is not None and vid not in known}

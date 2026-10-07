@@ -630,7 +630,7 @@ class Session:
         nothing better (a solve killed past its limit loses its plan). With one ``backend`` (every solve but a raced
         first one) the plain solve runs alongside, and the first to finish wins: large easy models (837k-row hotel
         models, solved cold in 7-43 s) do not wait 5-20 s for a plan they do not need (M10)."""
-        limit = limit or self.time_limit
+        limit = od.backends.fit(limit or self.time_limit)  # within the caller's step (the code workspace's call)
         if not (md.is_mip and md.num_rows >= START_MIN_ROWS):
             return solve(limit, None)
         lp_backend = od.BACKENDS[self.prefer] if self.strict() else od.BACKENDS["highs"]

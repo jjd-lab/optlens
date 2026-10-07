@@ -282,6 +282,8 @@ def localized_iis(md: ModelData, time_limit: float = 120.0, hops: int = 3) -> II
     # The seed: the rows of HiGHS's infeasibility proof (one LP solve), else the rows the elastic relaxation
     # stretches (slower: 172 s on the linked hotel model at 279k rows against 5 s for the proof).
     seed = set(highs.farkas_rows(lp, time_limit) or [])
+    if not seed and time_limit - (time.monotonic() - start) < 5:  # the proof used the time: no relaxation either
+        return None
     if not seed:
         relax = feas_relax(lp, highs, time_limit=max(1.0, time_limit - (time.monotonic() - start)))
         seed = {md.row_index(r["name"]) for r in relax.relaxations if r["type"] == "constraint"}
@@ -316,12 +318,13 @@ def lp_relaxation_iis(md: ModelData, time_limit: float = 300.0, backend: Backend
     does not finish within ``time_limit``."""
     from .backends import BACKENDS, IISNotSupported
 
+    start = time.monotonic()
     bk = backend if backend is not None and backend.licensed else BACKENDS["highs"]
     lp = replace(md, is_int=np.zeros(md.num_cols, dtype=bool))
     if not _infeasible(lp, bk, min(time_limit, 60.0)):
         return None
     try:
-        iis = bk.iis(lp, time_limit)
+        iis = bk.iis(lp, max(1.0, time_limit - (time.monotonic() - start)))
     except IISNotSupported:
         return None
     return replace(iis, method=f"lp_relaxation:{iis.method}")
@@ -342,8 +345,13 @@ def family_first_iis(md: ModelData, backend: Backend, time_limit: float = 60.0,
     if not backend.licensed and md.num_rows >= LOCALIZE_MIN_ROWS \
             and (loc := localized_iis(md, min(budget, 120.0))) is not None:
         return sorted({base_name(r) for r in loc.rows}), loc
-    if md.is_mip and (lp := lp_relaxation_iis(md, budget, backend)) is not None:
+    if md.is_mip and (lp := lp_relaxation_iis(md, max(1.0, budget - (time.monotonic() - start)), backend)) is not None:
         return sorted({base_name(r) for r in lp.rows}), lp
+    if md.num_rows >= LOCALIZE_MIN_ROWS and time.monotonic() - start > budget:
+        # the searches near the conflict used the budget; a search over the whole model would not finish either (E77:
+        # 60 s on an 837k-row model, then 120 s of fallbacks and an error)
+        raise IISNotSupported(f"no IIS within {budget:.0f} s on this {md.num_rows:,}-row model: the search near the "
+                              "conflict needs more time; call again with a larger time_limit")
     if names_are_meaningful(md):
         groups: dict[str, list[int]] = {}
         for i, n in enumerate(md.row_names):

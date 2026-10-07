@@ -84,6 +84,42 @@ class _TimedOut(Exception):
     pass
 
 
+# A deadline for one step of a caller (the code workspace sets one per run_python call, time.time() based): a solve or
+# IIS search started under it gets at most what is left, less the kill grace, so the step answers in time with what it
+# finished instead of being cut off whole (E77-E78: ten calls past 180 s since E69, each restarting the workspace).
+# When too little is left to be worth starting, StepTimeUsed ends the step: a search starved of time falls back to
+# worse paths (an IIS without its localized first step). CUTS records (asked, given) seconds for the caller to report.
+_STEP_DEADLINE: float | None = None
+CUTS: list[tuple[float, float]] = []
+MIN_STEP = 10.0  # seconds: less than this (or than asked) left ends the step
+
+
+class StepTimeUsed(BaseException):
+    """The step's time ran out before a solve or search could start. BaseException: engine code that falls back on
+    an ordinary error must not read it as one."""
+
+
+def set_step_deadline(at: float | None) -> None:
+    global _STEP_DEADLINE
+    _STEP_DEADLINE = at
+    CUTS.clear()
+
+
+def fit(seconds: float) -> float:
+    """``seconds`` within the step's deadline; StepTimeUsed when less than MIN_STEP (or ``seconds``) is left."""
+    if _STEP_DEADLINE is None:
+        return seconds
+    import time as _time
+
+    left = _STEP_DEADLINE - _time.time() - _GRACE
+    if left >= seconds:
+        return seconds
+    CUTS.append((seconds, max(0.0, left)))
+    if left < min(seconds, MIN_STEP):
+        raise StepTimeUsed(f"{seconds:.0f} s asked, {max(0.0, left):.0f} s left")
+    return left
+
+
 def _worker(conn):
     """A reusable solver process: run each (fn, args) it receives and send back the result."""
     while True:
@@ -125,8 +161,10 @@ class _Worker:
         self.proc.start()
         child.close()
         self.calls = 0
+        _ALL.add(self)
 
     def kill(self):
+        _ALL.discard(self)
         if self.proc.is_alive():
             self.proc.kill()
         self.proc.join()
@@ -136,6 +174,15 @@ class _Worker:
 
 _IDLE: list[_Worker] = []
 _IDLE_LOCK = threading.Lock()
+_ALL: set[_Worker] = set()  # every live solver process, idle or busy
+
+
+def kill_busy() -> None:
+    """Stop every solver process that is not idle: a step interrupted mid-solve leaves its solves running."""
+    with _IDLE_LOCK:
+        busy = [w for w in _ALL if w not in _IDLE]
+    for w in busy:
+        w.kill()
 _MAX_IDLE = 8
 _MAX_CALLS = 500  # recycle a worker after this many calls (solver memory growth)
 _KEEP_MAX_NNZ = 1_000_000  # a worker that solved a larger model is not kept: it holds on to that memory (1.5 GB at 837k
@@ -187,6 +234,7 @@ def race(md: ModelData, backends: list, time_limit: float = 60.0, start: np.ndar
 
     if crossed_bounds(md) != ([], []):
         return backends[0], SolveResult("INFEASIBLE")
+    time_limit = fit(time_limit)
     workers = {}
     for b in backends:
         with _IDLE_LOCK:
@@ -313,6 +361,7 @@ class Backend:
         solver begins from, for a MIP (see starting_plan); a solver that cannot use it ignores it."""
         if crossed_bounds(md) != ([], []):
             return SolveResult("INFEASIBLE")
+        time_limit = fit(time_limit)
         try:
             return _with_deadline(self._solve, (md, time_limit, start), time_limit + _GRACE)
         except _TimedOut:
@@ -323,6 +372,7 @@ class Backend:
         if rows or cols:  # a row or variable whose lower limit is above its upper limit is its own IIS
             return IIS(rows=rows[:1], col_bounds=[] if rows else cols[:1], method="crossed bounds",
                        bounds_reported=True)
+        time_limit = fit(time_limit)
         try:
             return _with_deadline(self._iis, (md, time_limit), time_limit + _GRACE)
         except _TimedOut as e:
@@ -377,6 +427,7 @@ class HiGHSBackend(Backend):
         """Rows with a nonzero multiplier in HiGHS's proof that the LP ``md`` is infeasible (its dual ray): together,
         with the variable bounds, they are infeasible on their own. None when the LP is not proven infeasible or no
         ray is returned. Presolve is off, since a model presolve rejects comes back without a ray."""
+        time_limit = fit(time_limit)
         try:
             return _with_deadline(self._farkas_rows, (md, time_limit), time_limit + _GRACE)
         except _TimedOut:
@@ -538,6 +589,7 @@ class GurobiBackend(Backend):
         """An LP's solution, shadow prices, reduced costs and the ranges over which its optimal basis stays optimal
         (each row's limit, each column's objective coefficient; None for a QP). None when it is not solved to
         optimality in ``time_limit``."""
+        time_limit = fit(time_limit)
         try:
             return _with_deadline(self._ranging, (md, time_limit), time_limit + _GRACE)
         except _TimedOut:

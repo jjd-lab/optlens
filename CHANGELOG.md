@@ -1,6 +1,11 @@
 # Changelog
 
 ## 0.0.1 (unreleased, 2026-09-30)
+- `run_python` calls keep to their time: solves and searches inside a call get at most what is left of it (the output
+  says when one got less than asked), a step with under 10 s left is not started, and code still running at the limit
+  is stopped with its variables, versions and solves kept; only a call stuck past that restarts the process, which
+  then reuses the original model's solve. A large MIP's IIS search gives each fallback only what is left of its
+  budget and says when it needs a larger `time_limit` (on an 837k-row model at 60 s it ran 180 s and failed).
 - `feasibility_relaxation` no longer fails with a `TypeError` when HiGHS ends its best-plan phase OPTIMAL without a
   plan (found on a 4.7k-row blending model): HiGHS reports that as no verdict, and the phase's cap on the total change
   allows 1e-9 of slack.
