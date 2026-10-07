@@ -1,6 +1,5 @@
 """Quadratic objectives: a convex QP solves on HiGHS, a mixed-integer or non-convex one goes to SCIP; quadratic
 constraints are rejected. Run from the repo root: python -m unittest tests.test_quadratic"""
-import importlib.util
 import tempfile
 import unittest
 from dataclasses import replace
@@ -50,7 +49,7 @@ class TestQuadratic(unittest.TestCase):
         s = Session({"v0": Version(replace(qp(2.0), is_int=np.ones(1, bool)), None, "original")})
         self.assertEqual((s.solved("v0").status, s.route), ("OPTIMAL", "scip"))
 
-    @unittest.skipUnless(importlib.util.find_spec("gurobipy"), "gurobipy not installed")
+    @unittest.skipUnless(od.gurobi_usable(), "Gurobi cannot run here")
     def test_gurobi_solves_a_non_convex_qp(self):
         r = od.BACKENDS["gurobi"].solve(qp(-2.0))
         self.assertEqual(r.status, "OPTIMAL")
