@@ -441,15 +441,20 @@ def check_iis(md: ModelData, iis: IIS, backend: Backend, check_irreducible: bool
 
 
 def linking_families(md: ModelData) -> set[str]:
-    """Constraint families whose every limit is 0: balance and linking rows that define one quantity from others,
-    not business limits a planner sets."""
+    """Constraint families whose every limit is 0 and whose every row has coefficients of both signs: balance and
+    linking rows that define one quantity from others (make - ship = 0), not business limits a planner sets. A
+    zero-limit row with one sign is a ban, a business rule (the hotel's rate fence, last-minute discounted sales
+    <= 0, was labelled a linking row in E83 and the agent relaxed it unasked)."""
     rows_of: dict[str, list[int]] = {}
     for i, n in enumerate(md.row_names):
         rows_of.setdefault(base_name(n), []).append(i)
+    A = md.A.tocsr()
     out = set()
     for fam, idx in rows_of.items():
         bounds = np.concatenate([md.row_lo[idx], md.row_hi[idx]])
-        if np.all(np.abs(bounds[np.isfinite(bounds)]) <= 1e-9):
+        if not np.all(np.abs(bounds[np.isfinite(bounds)]) <= 1e-9):
+            continue
+        if all((d := A.data[A.indptr[i]:A.indptr[i + 1]]).size and d.min() < 0 < d.max() for i in idx):
             out.add(fam)
     return out
 

@@ -147,6 +147,11 @@ class PlanLanguage(unittest.TestCase):
     def test_linking_families_are_rows_whose_limits_are_all_zero(self):
         self.assertEqual(od.linking_families(linked()), {"link"})
 
+    def test_a_zero_limit_ban_is_a_business_rule_not_a_link(self):
+        # E83: the hotel's rate fence (last-minute discounted sales <= 0) was labelled a linking row
+        md = linked().add_row("fence", {"ship": 1.0}, hi=0.0)
+        self.assertEqual(od.linking_families(md), {"link"})
+
 
 if __name__ == "__main__":
     unittest.main()

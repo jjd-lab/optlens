@@ -1,6 +1,9 @@
 # Changelog
 
 ## 0.0.1 (unreleased, 2026-09-30)
+- A family whose limits are all 0 is called a linking row only when its rows tie quantities together (coefficients of
+  both signs); a ban such as the hotel's rate fence (last-minute discounted sales <= 0) is a business rule, and a
+  relaxation no longer labels it "not a business lever".
 - `run_python` calls keep to their time: solves and searches inside a call get at most what is left of it (the output
   says when one got less than asked), a step with under 10 s left is not started, and code still running at the limit
   is stopped with its variables, versions and solves kept; only a call stuck past that restarts the process, which
