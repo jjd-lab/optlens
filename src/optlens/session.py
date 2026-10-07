@@ -126,7 +126,7 @@ TOOLS = [
     },
     {
         "name": "feasibility_relaxation",
-        "description": "Minimal total change (sum of absolute RHS/bound changes) that makes an infeasible version feasible (one relaxation solve; slower than a plain solve on a large MIP). Returns every change needed, each with its current and suggested value; all are required together. Suggested values are exact: copy them as printed rather than rounding or recomputing them. only_families limits which constraint/variable families may change (others stay hard); relax_variable_bounds also allows variable bounds to move.",
+        "description": "Minimal total change (sum of absolute RHS/bound changes) that makes an infeasible version feasible (one relaxation solve; slower than a plain solve on a large MIP). Returns one minimal fix: its changes, applied together, each with its current and suggested value; other minimal fixes of the same total may exist (fix_menu lists single-family fixes). Suggested values are exact: copy them as printed rather than rounding or recomputing them. only_families limits which constraint/variable families may change (others stay hard); relax_variable_bounds also allows variable bounds to move.",
         "input_schema": {"type": "object", "properties": {
             "version": {"type": "string"},
             "only_families": {"type": "array", "items": {"type": "string"}},
@@ -910,7 +910,7 @@ class Session:
         linking = od.linking_families(md)
         tag = lambda r: " [linking row, not a business lever]" if base_name(r["name"]) in linking else ""  # noqa: E731
         changes.sort(key=lambda r: bool(tag(r)))  # business levers first
-        lines = [f"status {res.status}; total change {_fmt(res.total_violation)}; {len(changes)} changes, all required together:"]
+        lines = [f"status {res.status}; total change {_fmt(res.total_violation)}; {len(changes)} change(s), applied together: a minimal fix; other minimal fixes of the same size may exist (fix_menu lists single-family fixes):"]
         lines += [f"  {r['name']}: {_bound_label(r)} {_fmt(r['current'])} -> {_fmt(r['new'])} (minimal change {_fmt(r['value'])}){tag(r)}"
                   for r in changes]
         if changes and all(tag(r) for r in changes):
