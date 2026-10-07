@@ -1,6 +1,9 @@
 # Changelog
 
 ## 0.0.1 (unreleased, 2026-09-30)
+- The second look for a smaller IIS gets at least 30 s (within the call's allowance) instead of whatever the first
+  search left; when there is no time at all, the note says a smaller conflict may exist. The MCP server deletes its
+  `run_python` workspace's temp folder when the workspace closes and when the server stops.
 - Looking up a row by name uses a cached dict, as columns already did: dropping a 262,800-row family from a 279k-row
   model took about 560 s through `tuple.index` (found on Windows with Gurobi, where it held up `compute_iis` and
   `fix_menu`). `fix_menu` counts its own IIS search against the call's allowance (calling it again gets the menu, the

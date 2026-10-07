@@ -119,6 +119,17 @@ class TestMcpServer(unittest.TestCase):
         self.assertIn("when its data differed", out)  # listed to carry over, not restored
         self.assertIn("v1 from v0: looser first row (1 changes)", out)
 
+    def test_closing_the_workspace_removes_its_temp_folder(self):
+        from optlens.mcp_server import State
+
+        state = State()
+        state.call("open_model", {"path": str(MODEL)})
+        state.call("run_python", {"code": "x = 1"})
+        folder = state.workspace.workdir
+        self.assertTrue(folder.exists())
+        state.close_workspace()
+        self.assertFalse(folder.exists())  # E74: 42 optlens-ws-* folders were left in %TEMP%
+
     def test_run_python_and_the_tools_share_versions_and_solves(self):
         from optlens.mcp_server import State
 

@@ -34,6 +34,7 @@ TIME_LIMIT = 60.0
 IIS_SOLVE_LIMIT = 60.0   # per solve inside an IIS search (LP: the whole HiGHS IIS)
 IIS_BUDGET = 300.0       # a whole IIS search; large MIPs stop "reduced"
 LARGE_MIP_ROWS = 500      # a MIP IIS search this size is slow: shorter default budget, and the result says so
+SMALLER_IIS_FLOOR = 30.0  # seconds the second look for a smaller IIS gets at least, within the call's allowance
 LARGE_IIS_ROWS = 200  # an IIS with more rows than this names no conflict a reader can follow (E64: 3,319; E66: 721)
 FIX_CHECKS = 5           # suspicious_values solves the undo of at most this many flags, each and all together
 FIX_CHECK_BUDGET = 60.0  # seconds for all of those solves; the rest are listed unchecked
@@ -765,7 +766,11 @@ class Session:
             t0 = time.monotonic()
             v.iis_result = self._find_iis(v.md, bk, budget)
             if len(v.iis_result[1].rows) > LARGE_IIS_ROWS:
-                v.iis_result = self._smaller_iis(v.md, bk, v.iis_result, budget - (time.monotonic() - t0))
+                # the second look gets at least SMALLER_IIS_FLOOR, within the call's allowance (E74: the first IIS
+                # took most of the budget on a slow day and the 721 rows stood)
+                spent = time.monotonic() - t0
+                room = np.inf if self.max_time_limit is None else self.max_time_limit - spent
+                v.iis_result = self._smaller_iis(v.md, bk, v.iis_result, min(max(budget - spent, SMALLER_IIS_FLOOR), room))
         return v.iis_result
 
     @staticmethod
@@ -784,7 +789,11 @@ class Session:
         for r in found[1].rows:
             fams[base_name(r)] = fams.get(base_name(r), 0) + 1
         big = max(fams, key=fams.get)
-        if budget < 10 or fams[big] == len(found[1].rows):
+        if fams[big] == len(found[1].rows):
+            return found
+        if budget < 10:
+            note = f"a smaller conflict may exist (no time was left to look again with {big} left out)"
+            found[1].note = f"{found[1].note}; {note}" if found[1].note else note
             return found
         t0 = time.monotonic()
         rest = md.drop_rows([n for n in md.row_names if base_name(n) == big])

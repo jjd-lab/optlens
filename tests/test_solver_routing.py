@@ -116,6 +116,14 @@ class TestSmallerIIS(unittest.TestCase):
         self.assertEqual(sorted(iis.rows), ["floor", "total"])
         self.assertIn("found with cap left out; the first one the solver returned had 11 rows", iis.note)
 
+        # no time left in the call for a second look: the first IIS stands, and the note says a smaller one may exist
+        calls.clear()
+        tight = Session({"v0": Version(md, None, "original")}, max_time_limit=2.0)
+        with mock.patch.object(ses, "LARGE_IIS_ROWS", 5), mock.patch.object(od, "get_iis", side_effect=first_big):
+            _, iis = tight.iis("v0")
+        self.assertEqual(len(iis.rows), 11)
+        self.assertIn("a smaller conflict may exist (no time was left to look again with cap left out)", iis.note)
+
 
 class TestFixMenuCallAllowance(unittest.TestCase):
     def test_the_iis_search_counts_against_the_calls_allowance(self):

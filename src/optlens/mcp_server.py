@@ -19,6 +19,7 @@ import importlib.util
 import json
 import os
 import re
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -267,6 +268,7 @@ class State:
     def close_workspace(self) -> None:
         if self.workspace is not None:
             self.workspace.close()
+            shutil.rmtree(self.workspace.workdir, ignore_errors=True)  # this server's temp folder (E74: 42 were left)
             self.workspace = None
 
     def call(self, name: str, args: dict) -> tuple[str, bool]:
@@ -373,9 +375,13 @@ def build_server(state: State | None = None) -> Server:
 
 
 async def _serve() -> None:
-    server = build_server()
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(read_stream, write_stream, server.create_initialization_options())
+    state = State()
+    server = build_server(state)
+    try:
+        async with stdio_server() as (read_stream, write_stream):
+            await server.run(read_stream, write_stream, server.create_initialization_options())
+    finally:
+        state.close_workspace()
 
 
 def main() -> None:
