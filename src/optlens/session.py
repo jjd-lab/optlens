@@ -1033,9 +1033,12 @@ class Session:
         if drops:
             md = md.drop_rows(drops)
         for (is_col, name), k in touched.items():
-            names, lo, hi = (md.col_names, md.col_lb, md.col_ub) if is_col else (md.row_names, md.row_lo, md.row_hi)
-            if name in names and lo[names.index(name)] > hi[names.index(name)]:
-                i = names.index(name)
+            index, lo, hi = (md.col_index, md.col_lb, md.col_ub) if is_col else (md.row_index, md.row_lo, md.row_hi)
+            try:
+                i = index(name)
+            except ValueError:
+                continue
+            if lo[i] > hi[i]:
                 problems.append((k, changes[k - 1], ValueError(f"lower {_fmt(lo[i])} is above upper {_fmt(hi[i])}")))
         if problems:
             problems.sort(key=lambda p: p[0])

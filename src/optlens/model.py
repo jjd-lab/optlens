@@ -19,7 +19,20 @@ INF = highspy.kHighsInf
 CONVEXITY_CHECK_MAX = 3000  # variables in the quadratic term above which convexity is assumed, not checked (a dense
                             # eigenvalue check on that many takes seconds)
 _CONVEX: dict[tuple[int, bool], tuple[weakref.ref, bool]] = {}  # (id(Q), minimize) -> (Q, convex): edits keep Q
-_COL_POSITION: dict[int, tuple[tuple, dict[str, int]]] = {}  # id(col_names) -> (col_names, name -> first position)
+_POSITION: dict[int, tuple[tuple, dict[str, int]]] = {}  # id(names) -> (names, name -> first position)
+
+
+def _position(names: tuple, name: str, kind: str) -> int:
+    # a dict per names tuple (edits keep it): tuple.index made one 103k-term add_row take 76 s on 73k columns, and
+    # dropping a 262,800-row family from 279k rows take ~560 s
+    hit = _POSITION.get(id(names))
+    if hit is None or hit[0] is not names:
+        if len(_POSITION) >= 16:
+            _POSITION.clear()
+        hit = _POSITION[id(names)] = (names, {n: i for i, n in reversed(list(enumerate(names)))})
+    if (i := hit[1].get(name)) is None:
+        raise ValueError(f"{name!r} is not a {kind}")
+    return i
 
 
 def _inf(v: float | None) -> float | None:
@@ -86,19 +99,10 @@ class ModelData:
         return bool(self.is_int.any())
 
     def row_index(self, name: str) -> int:
-        return self.row_names.index(name)
+        return _position(self.row_names, name, "row")
 
     def col_index(self, name: str) -> int:
-        # a dict per names tuple (edits keep it): tuple.index made one 103k-term add_row take 76 s on 73k columns
-        hit = _COL_POSITION.get(id(self.col_names))
-        if hit is None or hit[0] is not self.col_names:
-            if len(_COL_POSITION) >= 16:
-                _COL_POSITION.clear()
-            hit = _COL_POSITION[id(self.col_names)] = (
-                self.col_names, {n: j for j, n in reversed(list(enumerate(self.col_names)))})
-        if (j := hit[1].get(name)) is None:
-            raise ValueError(f"{name!r} is not a column")
-        return j
+        return _position(self.col_names, name, "column")
 
     # ---- edits (each returns a new ModelData) ----
 
