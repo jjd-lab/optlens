@@ -142,12 +142,19 @@ _CTX = None
 def _context():
     """forkserver, not fork: forking a process that already runs solver threads can deadlock the
     child. The server is a clean single-threaded process with the solver modules preloaded. Windows has
-    no forkserver; spawn starts each worker as a fresh interpreter there (slower to start, same limit)."""
+    no forkserver, and a sandbox that forbids binding a Unix socket (Claude Code's Bash sandbox) cannot start
+    one; spawn starts each worker as a fresh interpreter there (slower to start, same limit)."""
     global _CTX
     if _CTX is None:
         if "forkserver" in mp.get_all_start_methods():
-            _CTX = mp.get_context("forkserver")
-            _CTX.set_forkserver_preload(["optlens"])
+            ctx = mp.get_context("forkserver")
+            ctx.set_forkserver_preload(["optlens"])
+            try:
+                from multiprocessing import forkserver
+                forkserver.ensure_running()
+                _CTX = ctx
+            except OSError:
+                _CTX = mp.get_context("spawn")
         else:
             _CTX = mp.get_context("spawn")
     return _CTX
