@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.0.2 (unreleased)
+## 0.0.2 (2026-10-08)
+- Solves work inside a sandbox that forbids Unix sockets (Claude Code's Bash sandbox): the solver workers start with
+  spawn when the forkserver cannot start, as on Windows.
 - The MCP server reports optlens's version when a client connects (it sent an empty version).
 - The model context describes the model, not one data set: it is keyed by the model's families alone, so the same
   model with other data (more nights, new demand) reuses it, and open_model notes when the document changed. It no
@@ -10,8 +12,8 @@
   suspicious values, fix menu and verifying re-solves; a what-if's change, re-solve and comparison).
 - The plugin's skill points to the server's instructions instead of repeating them, so Claude Code loads the method
   once, and says what to do when the optlens tools are missing: install the engine and restart the client.
-- The plugin has an eval suite (plugin/evals, run with claude plugin eval): eight questions on the hotel pack's
-  14-night week and 4-hotel year, with and without the plugin.
+- The plugin has an eval suite (plugin/evals, run with claude plugin eval): twelve questions on the hotel pack's
+  14-night week and 4-hotel year and on one Netlib model, with and without the plugin.
 - The plugin manifest has a version, and the README names the package for the MCP Registry.
 
 ## 0.0.1 (2026-10-07)
