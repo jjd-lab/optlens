@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "optlens"
-version = "0.0.1"
+version = "0.0.2"
 description = "Solver-agnostic diagnostics for LP/MILP models: IIS, feasibility relaxation, repair menus, sensitivity, what-if."
 requires-python = ">=3.12"
 license = "Apache-2.0"

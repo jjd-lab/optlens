@@ -7,6 +7,8 @@ Claude Code through the plugin, or from any MCP client.
 
 optlens works on a model that is already built. It does not write models.
 
+<!-- mcp-name: io.github.jjd-lab/optlens -->
+
 ## Install
 
 Python 3.12 or later:

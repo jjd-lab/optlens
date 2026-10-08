@@ -5,7 +5,7 @@ from importlib.metadata import version as _version
 try:
     __version__ = _version("optlens")
 except _NotInstalled:  # run from a source checkout without installing
-    __version__ = "0.0.1"
+    __version__ = "0.0.2"
 from .backends import (BACKENDS, IIS, race, GurobiBackend, HiGHSBackend, IISNotSupported, LicenseLimit, SCIPBackend,
                        SolverUnusable, SolveResult, StartingPlan, StepTimeUsed, gurobi_problem, gurobi_usable,
                        gurobipy_version, starting_plan)

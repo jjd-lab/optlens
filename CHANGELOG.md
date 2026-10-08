@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.0.2 (unreleased)
+- The MCP server reports optlens's version when a client connects (it sent an empty version).
+- The model context describes the model, not one data set: it is keyed by the model's families alone, so the same
+  model with other data (more nights, new demand) reuses it, and open_model notes when the document changed. It no
+  longer stores a documented result, and save_model_context asks for meanings without current values. A context saved
+  by 0.0.1 is written once more.
+- The method asks for one run_python call for a question that needs several engine calls (an infeasible model's IIS,
+  suspicious values, fix menu and verifying re-solves; a what-if's change, re-solve and comparison).
+- The plugin's skill points to the server's instructions instead of repeating them, so Claude Code loads the method
+  once, and says what to do when the optlens tools are missing: install the engine and restart the client.
+- The plugin has an eval suite (plugin/evals, run with claude plugin eval): eight questions on the hotel pack's
+  14-night week and 4-hotel year, with and without the plugin.
+- The plugin manifest has a version, and the README names the package for the MCP Registry.
+
 ## 0.0.1 (2026-10-07)
 - A family whose limits are all 0 is called a linking row only when its rows tie quantities together (coefficients of
   both signs); a ban such as the hotel's rate fence (last-minute discounted sales <= 0) is a business rule, and a

@@ -2,8 +2,9 @@
 
 The deterministic part is the inventory: every constraint and variable family with its count, senses or types and one
 example name. The meanings (an "interpretation") come from an LLM outside this package (the host model
-through the plugin's skill, or an agent's own call), so optlens needs no LLM SDK. What optlens adds: a key per document and
-family structure, validation of an interpretation against the inventory, a store of saved interpretations, and one
+through the plugin's skill, or an agent's own call), so optlens needs no LLM SDK. The context describes the model, not one
+instance's data: the same model with other data (more nights, new demand) shows the same context. What optlens adds: a key
+per family structure, validation of an interpretation against the inventory, a store of saved interpretations, and one
 renderer, so every agent and the plugin describe a model in the same words (standard meanings across sessions and
 people)."""
 from __future__ import annotations
@@ -63,10 +64,7 @@ def render(ctx: dict) -> str:
     meaning = {(f["kind"], f["family"]): f for f in (interp or {}).get("families", [])}
     lines = ["<ModelContext>", RULES, ""]
     if interp:
-        lines += [f"Overview: {interp['overview']}", f"Objective: {interp['objective']}"]
-        if interp.get("documented_result"):
-            lines.append(f"Documented result (original model): {interp['documented_result']}")
-        lines += ["", "Indices:"]
+        lines += [f"Overview: {interp['overview']}", f"Objective: {interp['objective']}", "", "Indices:"]
         lines += [f"- {i['name']}: {i['description']}" for i in interp["indices"]]
         if interp["input_data"]:
             lines += ["", "Input data:"] + [f"- {i['name']}: {i['description']}" for i in interp["input_data"]]
@@ -105,15 +103,19 @@ def render(ctx: dict) -> str:
 # ---- saved interpretations (the plugin's context cache) ----
 
 SCHEMA = 1
-FIELDS = {"overview": str, "objective": str, "documented_result": str, "indices": list, "input_data": list,
-          "families": list, "not_in_model": list}
+FIELDS = {"overview": str, "objective": str, "indices": list, "input_data": list, "families": list, "not_in_model": list}
 
 
-def context_key(inv: dict, doc: str) -> str:
-    """Same document and family structure, same key: data edits and model versions reuse one saved context, and a
-    family added later shows up as undescribed instead of breaking the match."""
+def context_key(inv: dict) -> str:
+    """Same family structure, same key: other data, data edits and model versions reuse one saved context, and a
+    family added later shows up as undescribed instead of breaking the match. The document is not part of the key, so
+    a document that lists the data can change with it; document_sha tells when it changed."""
     structure = sorted((k, n) for k in ("constraints", "variables") for n in inv[k] if n != "user_added_target")
-    return hashlib.sha256((json.dumps(structure) + doc).encode()).hexdigest()[:16]
+    return hashlib.sha256(json.dumps(structure).encode()).hexdigest()[:16]
+
+
+def document_sha(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
 def validate(interp: dict, inv: dict) -> tuple[dict, dict]:
@@ -158,18 +160,24 @@ class ContextStore:
     def path(self, model_name: str, key: str) -> Path:
         return self.root / f"{model_name}-{key}.json"
 
-    def load(self, model_name: str, key: str) -> dict | None:
+    def record(self, model_name: str, key: str) -> dict | None:
+        """The saved file's contents: the interpretation with its source, document_sha and save time."""
         hits = sorted(self.root.glob(f"*-{key}.json")) if self.root.is_dir() else []
         p = self.path(model_name, key)
         p = p if p.exists() else (hits[0] if hits else None)
         if p is None:
             return None
         data = json.loads(p.read_text())
-        return data.get("interpretation") if data.get("schema") == SCHEMA else None
+        return data if data.get("schema") == SCHEMA else None
 
-    def save(self, model_name: str, key: str, interp: dict, source: str = "") -> Path:
+    def load(self, model_name: str, key: str) -> dict | None:
+        data = self.record(model_name, key)
+        return data.get("interpretation") if data else None
+
+    def save(self, model_name: str, key: str, interp: dict, source: str = "", doc_sha: str = "") -> Path:
         self.root.mkdir(parents=True, exist_ok=True)
         p = self.path(model_name, key)
         p.write_text(json.dumps({"schema": SCHEMA, "model": model_name, "key": key, "source": source,
-                                 "saved": time.strftime("%Y-%m-%d %H:%M:%S"), "interpretation": interp}, indent=1))
+                                 "document_sha": doc_sha, "saved": time.strftime("%Y-%m-%d %H:%M:%S"),
+                                 "interpretation": interp}, indent=1))
         return p

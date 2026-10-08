@@ -58,6 +58,12 @@ class TestMcpServer(unittest.TestCase):
 
         self.assertEqual(build_server().create_initialization_options().instructions, prompts.SERVER_INSTRUCTIONS)
 
+    def test_the_server_reports_the_package_version(self):
+        import optlens
+        from optlens.mcp_server import build_server
+
+        self.assertEqual(build_server().create_initialization_options().server_version, optlens.__version__)
+
     def test_the_call_limit_sets_every_limit_together(self):
         from optlens.mcp_server import call_limits
 

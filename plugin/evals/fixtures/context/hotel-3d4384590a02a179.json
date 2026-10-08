@@ -1,0 +1,129 @@
+{
+ "schema": 1,
+ "model": "hotel",
+ "key": "3d4384590a02a179",
+ "source": "model.md",
+ "document_sha": "d4c6845206b194de",
+ "saved": "2026-10-08 07:01:41",
+ "interpretation": {
+  "overview": "Plans room sales for a hotel group over a booking horizon. For every hotel, room type, arrival night, length of stay, booking window and rate tier it decides how many bookings to accept, to maximize room revenue. Demand is forecast per rate tier, and the hotel chooses how much of each tier to sell (booking limits). Business rules cap rooms in house, discounted sales and housekeeping turnover, and require minimum occupancy; the linked variant adds group-wide occupancy and a shared discount budget.",
+  "objective": "Maximize total room revenue: bookings sold times nightly rate, less the longer-stay discount, times nights stayed.",
+  "indices": [
+   {
+    "name": "h",
+    "description": "hotel"
+   },
+   {
+    "name": "r",
+    "description": "room type (standard, deluxe, suite)"
+   },
+   {
+    "name": "s",
+    "description": "length of stay in nights; a stay arriving on night d occupies nights d to d+s-1"
+   },
+   {
+    "name": "d",
+    "description": "arrival night"
+   },
+   {
+    "name": "w",
+    "description": "booking window: early, advance, late, lastminute"
+   },
+   {
+    "name": "t",
+    "description": "rate tier, cheapest first; t0 and t1 are the discounted tiers"
+   }
+  ],
+  "input_data": [
+   {
+    "name": "room_count, overbooking, group_block",
+    "description": "rooms per type, the share that may be sold above physical capacity, and rooms held for a group contract; together they set room capacity"
+   },
+   {
+    "name": "base_rate, tier_multiplier, stay_discount",
+    "description": "the nightly rate of each tier and the per-night discount for longer stays"
+   },
+   {
+    "name": "demand",
+    "description": "forecast bookings available at each tier, per hotel, room type, stay, night and window"
+   },
+   {
+    "name": "discount_share, housekeeping_share, occupancy_floor, group_occupancy_floor, discount_budget",
+    "description": "the limits behind the discount cap, housekeeping, occupancy floor, group occupancy and group discount budget rules"
+   }
+  ],
+  "families": [
+   {
+    "family": "sell",
+    "kind": "variable",
+    "meaning": "Bookings accepted at one rate: the booking limit the revenue manager loads into the reservation system.",
+    "index_meaning": "hotel, room type, stay length, arrival night, booking window, rate tier",
+    "linking": false
+   },
+   {
+    "family": "demand_limit",
+    "kind": "constraint",
+    "meaning": "A rate cannot sell more bookings than its demand forecast.",
+    "index_meaning": "hotel, room type, stay length, arrival night, booking window, rate tier",
+    "linking": false
+   },
+   {
+    "family": "room_capacity",
+    "kind": "constraint",
+    "meaning": "Bookings of a room type in house on a night cannot exceed its rooms plus the overbooking allowance, minus the group block.",
+    "index_meaning": "hotel, room type, night",
+    "linking": false
+   },
+   {
+    "family": "discount_cap",
+    "kind": "constraint",
+    "meaning": "Arrivals at the discounted tiers may fill only a share of a room type's rooms per night.",
+    "index_meaning": "hotel, room type, arrival night",
+    "linking": false
+   },
+   {
+    "family": "rate_fence",
+    "kind": "constraint",
+    "meaning": "Last-minute bookers never get the discounted tiers (a ban, not a capacity).",
+    "index_meaning": "hotel, room type, arrival night",
+    "linking": false
+   },
+   {
+    "family": "closed_to_one_night",
+    "kind": "constraint",
+    "meaning": "Event nights take only stays of two nights or more (a ban on one-night arrivals).",
+    "index_meaning": "hotel, room type, event night",
+    "linking": false
+   },
+   {
+    "family": "housekeeping",
+    "kind": "constraint",
+    "meaning": "Check-outs on a morning cannot exceed what the housekeeping team can turn over.",
+    "index_meaning": "hotel, night",
+    "linking": false
+   },
+   {
+    "family": "occupancy_floor",
+    "kind": "constraint",
+    "meaning": "Each hotel must reach a minimum occupancy every night (a brand standard).",
+    "index_meaning": "hotel, night",
+    "linking": false
+   },
+   {
+    "family": "group_occupancy",
+    "kind": "constraint",
+    "meaning": "Rooms in house across all hotels must reach the group's minimum occupancy each night.",
+    "index_meaning": "night",
+    "linking": false
+   },
+   {
+    "family": "group_discount_budget",
+    "kind": "constraint",
+    "meaning": "Revenue given up by selling below the base tier, summed over the whole group, cannot exceed the shared discount budget.",
+    "index_meaning": "",
+    "linking": false
+   }
+  ],
+  "not_in_model": []
+ }
+}

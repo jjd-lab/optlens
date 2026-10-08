@@ -13,3 +13,5 @@
 .optlens/
 build/
 dist/
+
+plugin/evals/results/

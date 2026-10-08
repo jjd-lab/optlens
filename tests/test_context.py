@@ -34,7 +34,7 @@ class TestContext(unittest.TestCase):
         clean, cov = validate(CONTEXT, self.inv)
         self.assertEqual(cov, {"undescribed": ["resource"], "unknown": ["overtime"]})
         self.assertEqual([f["family"] for f in clean["families"]], ["job", "assign"])
-        self.assertEqual(clean["documented_result"], "")  # optional fields default
+        self.assertEqual(clean["input_data"], [])  # optional fields default
 
     def test_validate_rejects_malformed(self):
         for bad in ([], {"overview": 3}, {"families": [{"family": "job", "kind": "row", "meaning": "x"}]},
@@ -42,11 +42,10 @@ class TestContext(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 validate(bad, self.inv)
 
-    def test_key_follows_document_and_structure_not_data(self):
-        k = context_key(self.inv, "doc v1")
+    def test_key_follows_structure_not_data(self):
+        k = context_key(self.inv)
         edited = self.md.set_row_bounds(self.md.row_names[0], hi=123.0)  # a data change keeps the context
-        self.assertEqual(context_key(inventory(edited), "doc v1"), k)
-        self.assertNotEqual(context_key(self.inv, "doc v2"), k)
+        self.assertEqual(context_key(inventory(edited)), k)
 
     def test_store_round_trip(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -78,8 +77,10 @@ class TestMcpContext(unittest.TestCase):
             again = State(store).open_model(str(MODEL), document=str(doc))  # a later session
             self.assertIn("Saved model context", again)
             self.assertIn("each job gets exactly one worker", again)
-            doc.write_text("A rewritten document.")  # a different document is a different context
-            self.assertIn("No saved model context", State(store).open_model(str(MODEL), document=str(doc)))
+            doc.write_text("A rewritten document.")  # the same model: its context stays, with a note
+            changed = State(store).open_model(str(MODEL), document=str(doc))
+            self.assertIn("each job gets exactly one worker", changed)
+            self.assertIn("tutorial.md changed since this context was saved", changed)
 
     def test_save_before_open_is_an_error(self):
         from optlens.mcp_server import State

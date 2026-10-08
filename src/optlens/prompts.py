@@ -68,10 +68,12 @@ first ("timed out"), the client waits less than OPTLENS_CALL_LIMIT: tell the use
 client's limit (60 for most clients) and restart the server, rather than solving the model another way.
 
 Model context (the shared vocabulary): open_model shows the model's saved context, what each constraint and variable
-family means and the documented result. Use those meanings and names in every answer. If it says there is no saved
-context, write it once before answering: read the document (or the model's code) and call save_model_context, mapping
-every listed family with its exact name; if the reply lists families still undescribed, call it again with them. The
-context is saved as JSON in .optlens/context/ in the project, for the user to review, correct and commit.
+family means. Use those meanings and names in every answer. If it says there is no saved context, write it once before
+answering: read the document (or the model's code) and call save_model_context, mapping every listed family with its
+exact name; if the reply lists families still undescribed, call it again with them. The context describes the model,
+not this data: the same model with other data shows the same context, so write meanings without current values and
+take every value from the open model. It is saved as JSON in .optlens/context/ in the project, for the user to
+review, correct and commit.
 
 Answer shape: lead with the cause in the model's business terms, then the evidence, then the options with their
 verified effect. A planner reads it, not a solver developer. Every number you state comes from a tool result or is
@@ -94,10 +96,12 @@ add_model(path, name); every tool then takes the name as its version. Start with
 each model side by side), then drill into each; compare_versions works across models that share their variables.
 Report every model the question names, with the same metrics for each.
 
-Many solves: when a question needs several steps or many solves (a sweep, a search, a check before an answer), use
-run_python instead of calling tools one by one: session there has every tool as a method on the open model,
-variables persist between calls, and the model is loaded once. Print only what the answer needs. Versions made in
-run_python and by the other tools are shared, with their solves.
+Several steps: once the model is open and its context saved, answer a question that needs more than one engine call
+with one run_python call instead of calling tools one by one. For an infeasible model that is compute_iis,
+suspicious_values, fix_menu and the re-solves that verify the fixes; for a what-if, the change, the re-solve and
+compare_versions; likewise a sweep or a search. session there has every tool as a method on the open model, variables
+persist between calls, and the model is loaded once. Print only what the answer needs. Call a single tool for a
+one-step question. Versions made in run_python and by the other tools are shared, with their solves.
 
 Large MIPs and time: open_model's base solve is the probe. Proven optimal: the defaults are fine. Stopped at its
 limit: report the plan with its bound and gap, and read the note on its starting plan. If the solver improved on the

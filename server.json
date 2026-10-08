@@ -1,0 +1,17 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.jjd-lab/optlens",
+  "title": "optlens",
+  "description": "Debug and explain LP/MILP models: why infeasible, the smallest fix, what-if and sensitivity.",
+  "repository": {"url": "https://github.com/jjd-lab/optlens", "source": "github"},
+  "websiteUrl": "https://optlens.dev",
+  "version": "0.0.2",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "optlens",
+      "version": "0.0.2",
+      "transport": {"type": "stdio"}
+    }
+  ]
+}

@@ -9,8 +9,8 @@ that cannot run a model stops and asks; under "auto" it falls back to HiGHS or S
 says which solver ran and why. HiGHS and SCIP, both open source, may stand in for each other; results say so.
 
 Model context: the business meaning of each family, written once by the host model from the document or code
-(`save_model_context`) and kept in .optlens/context/ (or OPTLENS_CONTEXT_DIR), keyed by document and family
-structure; `open_model` shows it in the same words every time, so sessions and people use one vocabulary.
+(`save_model_context`) and kept in .optlens/context/ (or OPTLENS_CONTEXT_DIR), keyed by family structure,
+so the same model with other data reuses it; `open_model` shows it in the same words every time, so sessions and people use one vocabulary.
 """
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, Te
 
 import optlens as od
 from optlens import prompts
-from optlens.context import ContextStore, _inventory_text, context_key, inventory, render, validate
+from optlens.context import ContextStore, _inventory_text, context_key, document_sha, inventory, render, validate
 from optlens.session import MULTI_MODEL_TOOLS, TOOLS, Session, Version, chosen_solver
 from optlens.structure import names_are_meaningful, row_classes
 from optlens.workspace import CodeWorkspace, tool_description
@@ -59,18 +59,19 @@ _ITEM = {"type": "object", "properties": {"name": {"type": "string"}, "descripti
 SAVE_MODEL_CONTEXT = {
     "name": "save_model_context",
     "description": ("Save the current model's business context once, from its document or code, so every later "
-                    "session shows the same meanings (the project's standard vocabulary for this model). Map EVERY "
-                    "family open_model listed, with its exact name; do not describe families that are not listed (put "
-                    "components the code defines but the model lacks in not_in_model). Explain each index position in "
-                    "order. Mark linking=true for balance, flow, linking and definitional families. Copy numbers "
-                    "exactly. Returns the coverage (families left undescribed) and the context as it will be shown."),
+                    "session shows the same meanings (the project's standard vocabulary for this model). Describe the "
+                    "model, not this data: what each family, index and input means and how they connect, without "
+                    "current values (capacities, rates, demand, results), which come from the open model and change "
+                    "with each data load. Map EVERY family open_model listed, with its exact name; do not describe "
+                    "families that are not listed (put components the code defines but the model lacks in "
+                    "not_in_model). Explain each index position in order. Mark linking=true for balance, flow, linking "
+                    "and definitional families. Returns the coverage (families left undescribed) and the context as "
+                    "it will be shown."),
     "input_schema": {"type": "object", "properties": {
         "overview": {"type": "string", "description": "3-5 sentence business overview"},
         "objective": {"type": "string", "description": "direction and what is optimized, in business terms"},
-        "documented_result": {"type": "string", "description": "the solved result the document reports (objective "
-                              "and headline decisions), numbers copied exactly; empty if none"},
         "indices": {"type": "array", "items": _ITEM, "description": "index sets and what they mean"},
-        "input_data": {"type": "array", "items": _ITEM, "description": "input data and what it means"},
+        "input_data": {"type": "array", "items": _ITEM, "description": "input data and what it means, not its values"},
         "families": {"type": "array", "items": {"type": "object", "properties": {
             "family": {"type": "string", "description": "exact family name from open_model's list"},
             "kind": {"type": "string", "enum": ["constraint", "variable"]},
@@ -176,7 +177,7 @@ class State:
         self.name = ""
         self.store = store
         self.md = self.inv = self.key = None
-        self.source = ""
+        self.source = self.doc_sha = ""
         self.model_spec, self.doc = "", None  # what open_model loaded, for the run_python workspace
         self.workspace: CodeWorkspace | None = None  # started on the first run_python call, one per open model
         # the open model's versions, saved after each call that adds one: a resumed conversation starts a new server,
@@ -215,7 +216,8 @@ class State:
         self.model_spec, self.doc = f"{p}{sep}{attr}", doc
         self.close_workspace()  # its model is the previous one
         self.source = doc.name if doc else ""
-        self.key = context_key(self.inv, doc.read_text(errors="replace") if doc else "")
+        self.key = context_key(self.inv)
+        self.doc_sha = document_sha(doc.read_text(errors="replace")) if doc else ""
         self.store = self.store or ContextStore()
         self.versions_file = self.store.root.parent / "sessions" / f"{md.name}-{model_hash(md)}.json"
         restored = ""
@@ -225,9 +227,13 @@ class State:
         elif earlier := sorted(self.versions_file.parent.glob(f"{md.name}-*.json"), key=lambda f: f.stat().st_mtime):
             restored = _earlier_data(earlier[-1])
         self.saved_versions = len(self.session.versions)
-        interp = self.store.load(md.name, self.key)
+        record = self.store.record(md.name, self.key)
+        interp = record and record.get("interpretation")
         if interp is not None:
             context = f"Saved model context ({self.store.path(md.name, self.key).name}):\n{self._context(interp)}"
+            if self.doc_sha and record.get("document_sha") not in ("", None, self.doc_sha):
+                context += (f"\n{doc.name} changed since this context was saved: if the model's meaning changed (not "
+                            "only its data), call save_model_context again.")
         elif doc is not None and names_are_meaningful(md):
             context = (f"No saved model context for this model and {doc.name}. Before answering, read the document "
                        "(read_model_document) and call save_model_context once, mapping every family below; later "
@@ -243,7 +249,7 @@ class State:
 
     def save_model_context(self, **interp) -> str:
         clean, coverage = validate(interp, self.inv)
-        path = self.store.save(self.md.name, self.key, clean, self.source)
+        path = self.store.save(self.md.name, self.key, clean, self.source, self.doc_sha)
         missing = coverage["undescribed"]
         return (f"saved to {path}" + (f"; still undescribed: {', '.join(missing)} (call again with them added)"
                                       if missing else "; every family is described")
@@ -370,7 +376,7 @@ def build_server(state: State | None = None) -> Server:
         out, err = await anyio.to_thread.run_sync(state.call, params.name, args)
         return CallToolResult(content=[TextContent(type="text", text=out)], is_error=err)
 
-    return Server("optlens", instructions=prompts.SERVER_INSTRUCTIONS,
+    return Server("optlens", version=od.__version__, instructions=prompts.SERVER_INSTRUCTIONS,
                   on_list_tools=list_tools, on_call_tool=call_tool)
 
 

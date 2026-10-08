@@ -11,11 +11,14 @@ PLUGIN = ROOT / "plugin"
 
 
 class TestPlugin(unittest.TestCase):
-    def test_the_skill_is_the_server_instructions(self):
+    def test_the_skill_points_to_the_server_instructions(self):
+        # Claude Code shows the server's instructions already; a full copy in the skill would load the method twice
         text = (PLUGIN / "skills/optlens/SKILL.md").read_text()
         front, body = text.split("---\n", 2)[1:]
         self.assertIn("name: optlens", front)
-        self.assertEqual(body.strip(), prompts.SERVER_INSTRUCTIONS.strip())
+        self.assertIn("instructions", body)
+        self.assertLess(len(body), len(prompts.SERVER_INSTRUCTIONS) / 4)
+        self.assertIn('pip install "optlens[scip,mcp]"', body)  # only the plugin can lack its tools
 
     def test_the_instructions_name_the_tools_an_agent_starts_with(self):
         for tool in ("open_model", "save_model_context", "compute_iis", "fix_menu", "suspicious_values",
