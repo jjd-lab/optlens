@@ -4,7 +4,7 @@ The optlens MCP server (`optlens-mcp`, 22 tools) plus the `optlens` skill, which
 sends every MCP client (see "Use it with your agent" in the [README](../README.md)).
 
 ```bash
-pip install "optlens[scip,mcp] @ git+https://github.com/jjd-lab/optlens"   # add [gurobi] if you have a license
+pip install "optlens[scip,mcp]"   # add [gurobi] if you have a license
 claude plugin marketplace add jjd-lab/optlens
 claude plugin install optlens@optlens
 ```
@@ -51,7 +51,7 @@ folder):
 ```powershell
 $R = "C:\path\to\optlens"; $T = "$HOME\optlens-try"; New-Item -ItemType Directory "$T\project" | Out-Null
 py -3.12 -m venv "$T\venv"
-& "$T\venv\Scripts\python" -m pip install "$R[scip,mcp,pyomo]"   # or "optlens[scip,mcp,pyomo] @ git+https://github.com/jjd-lab/optlens"
+& "$T\venv\Scripts\python" -m pip install "$R[scip,mcp,pyomo]"   # or "optlens[scip,mcp,pyomo]"
 $env:CLAUDE_CONFIG_DIR = "$T\claude-config"                     # a Claude config of its own: only this plugin
 claude plugin marketplace add $R                                 # or jjd-lab/optlens
 claude plugin install optlens@optlens
