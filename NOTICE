@@ -10,3 +10,6 @@ License, Version 2.0:
                                                           example, written as an MPS file
   tests/fixtures/ex_milp_tutorial__rhs_tighten__0.mps     the same model with one constraint limit tightened so
                                                           that it is infeasible (changed for this project)
+
+plugin/evals/fixtures/bgprtr.mps is the BGPRTR model from the Netlib collection of infeasible linear programs
+(https://www.netlib.org/lp/infeas/, collected by John W. Chinneck), unchanged.
