@@ -10,7 +10,5 @@
   "homepage": "https://optlens.dev",
   "repository": "https://github.com/jjd-lab/optlens",
   "license": "Apache-2.0",
-  "icon": "./icon.svg",
-  "documentationUrl": "https://github.com/jjd-lab/optlens/blob/main/plugin/README.md",
-  "supportUrl": "https://github.com/jjd-lab/optlens/issues"
+  "icon": "./icon.svg"
 }
