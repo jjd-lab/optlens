@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.0.1 (unreleased, 2026-09-30)
+## 0.0.1 (2026-10-07)
 - A family whose limits are all 0 is called a linking row only when its rows tie quantities together (coefficients of
   both signs); a ban such as the hotel's rate fence (last-minute discounted sales <= 0) is a business rule, and a
   relaxation no longer labels it "not a business lever".

@@ -1,0 +1,19 @@
+name: release
+# Publishes to PyPI through Trusted Publishing (no token): PyPI trusts this file in jjd-lab/optlens. Push a tag vX.Y.Z
+# matching pyproject.toml's version.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  pypi:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.13"}
+      - run: test "v$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)" = "$GITHUB_REF_NAME"
+      - run: pip install build && python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1

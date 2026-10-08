@@ -9,10 +9,10 @@ optlens works on a model that is already built. It does not write models.
 
 ## Install
 
-Python 3.12 or later. Not on PyPI yet; install from GitHub:
+Python 3.12 or later:
 
 ```bash
-pip install "optlens[scip,mcp] @ git+https://github.com/jjd-lab/optlens"   # core: numpy, scipy, HiGHS
+pip install "optlens[scip,mcp]"   # core: numpy, scipy, HiGHS
 ```
 
 To run the quickstart below or the tests, clone the repository and install it from the clone
