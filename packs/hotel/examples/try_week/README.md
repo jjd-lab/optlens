@@ -1,9 +1,9 @@
 # Try it: a hotel week with a data slip
 
-One hotel, 14 nights, from the hotel pack's linked variant (`model.md` in the pack describes every rule). After a data
-load, one input was typed wrong, and the plan comes back infeasible. Five planner questions in
-[questions.md](questions.md) walk through what the optlens plugin does with it: find the cause, value the rules, try a
-change, explain a decision, check the data.
+One hotel, 14 nights, from the hotel pack's linked variant. `model.md` in the pack describes every rule. During a
+data load, someone typed one input wrong, and the plan comes back infeasible. Five planner questions in
+[questions.md](questions.md) walk through what the optlens plugin does with it. The agent finds the cause, values the
+rules, tries a change, explains a decision and checks the data.
 
 | file | what |
 |---|---|
@@ -11,12 +11,12 @@ change, explain a decision, check the data.
 | `params.json` | the documented parameters, which the pack's `data_check` rebuilds the model from |
 | `questions.md` | the five questions |
 
-Try it in a clean Claude Code that leaves your own setup alone: `scripts/sandbox.sh ~/optlens-try` from a clone of
-this repository builds a folder with its own venv, Claude config, the plugin and this example, and prints how to start
-it. Or open the files with the plugin in your own Claude Code.
+Try it in a clean Claude Code that leaves your own setup alone. From a clone of this repository, run
+`scripts/sandbox.sh ~/optlens-try`. It builds a folder with its own venv, Claude config, the plugin and this example,
+and prints how to start it. Or open the files with the plugin in your own Claude Code.
 
-Made with `python packs/hotel/generate.py --nights 14 --hotels 1 --linked --out hotel_week.lp --params params.json`,
-then one number changed by hand (below).
+It was made with this command, and then one number was changed by hand (below):
+`python packs/hotel/generate.py --nights 14 --hotels 1 --linked --out hotel_week.lp --params params.json`.
 
 <details>
 <summary>The slip (read it after your session)</summary>

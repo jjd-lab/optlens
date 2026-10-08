@@ -1,7 +1,7 @@
 # Hotel pack
 
-A synthetic hotel revenue-management model and everything an agent needs to work on it. Apache-2.0, like optlens; all
-data is generated and seeded.
+A synthetic hotel revenue-management model and everything an agent needs to work on it. It is Apache-2.0, like
+optlens. All data is generated from a seed.
 
 | file | what it is |
 |---|---|
@@ -18,7 +18,7 @@ python packs/hotel/generate.py --nights 14 --pipeline hotel_two_stage/   # rate 
 ```
 
 With the optlens plugin in Claude Code, the helpers work in `run_python`:
-`import sys; sys.path.insert(0, "packs/hotel"); import helpers as hotel; print(hotel.data_check(session, "v0"))`
-(set `hotel.MODEL_FILE = MODEL_FILE` first so it finds `params.json` next to the model).
+`import sys; sys.path.insert(0, "packs/hotel"); import helpers as hotel; print(hotel.data_check(session, "v0"))`.
+Set `hotel.MODEL_FILE = MODEL_FILE` first, so that it finds `params.json` next to the model.
 
 Tests: `cd packs/hotel && python -m unittest discover -s tests -t .`
