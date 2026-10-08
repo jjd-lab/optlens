@@ -23,8 +23,8 @@
 <div class="hero"><div class="wrap">
   <h1>Debug and explain your optimization models.</h1>
   <p class="lead">optlens finds why an LP or MILP model is infeasible, the smallest change that fixes it, and what a
-  change costs, then says it in words a planner understands. Use it from Python, any MCP client, or Claude Code, on
-  HiGHS, SCIP or your own Gurobi.</p>
+  change costs. Then it says so in words a planner understands. Use it from Python, any MCP client, or Claude Code,
+  on HiGHS, SCIP or your own Gurobi.</p>
   <div class="buttons"><a class="btn primary" href="https://github.com/jjd-lab/optlens">Get started on GitHub</a>
   <a class="btn ghost" href="benchmark/">Read the benchmark</a></div>
   <pre class="install"><code>pip install "optlens[scip,mcp]"
@@ -36,8 +36,8 @@ codex mcp add optlens -- optlens-mcp                           # Codex (others: 
 <section class="soft"><div class="wrap">
   <h2 class="sec">Measured on 400 cases</h2>
   <p class="sub">Infeasible, wrong and working LP and MILP models of up to 837,000 constraints, each case with a
-  solver-verified answer key. Claude with optlens is compared with the same agent given only a solver; both get the same
-  model context.</p>
+  solver-verified answer key. We compare Claude with optlens against the same agent given only a solver. Both get the
+  same model context.</p>
   <div class="stats">
     <div class="stat"><div class="n">95-100 %</div><div class="l">correct in every suite, with or without
     optlens</div></div>
@@ -46,8 +46,8 @@ codex mcp add optlens -- optlens-mcp                           # Codex (others: 
     <div class="stat"><div class="n">35-61 %</div><div class="l">less time on models too large to read (279,000 to
     837,000 constraints)</div></div>
     <div class="stat"><div class="n">755 &rarr; 9</div><div class="l">variables reported as changed after one edit to an
-    ad-allocation MIP: a plain diff counts 755, mostly the solver switching between equally good plans; optlens shows
-    the 9 the edit forces</div></div>
+    ad-allocation MIP. A plain diff counts 755, mostly the solver switching between equally good plans. optlens shows
+    the 9 the edit forces.</div></div>
   </div>
   <div style="margin-top:34px"><figure class="chart"><div class="legend"><span><i style="background:var(--series-1)"></i>optlens</span><span><i style="background:var(--series-2)"></i>bare (solver only)</span></div><svg viewBox="0 0 720 290" role="img" aria-label="Mean cost per case by model size"><line class="grid" x1="16" x2="704" y1="244" y2="244"/><rect class="bar" x="45.2" y="167.1" width="53.8" height="76.9" rx="4" fill="var(--series-1)"><title>optlens, small: $0.056 per case, 5.1 turns, 80/81 right</title></rect><text class="val" x="72.1" y="161.1" text-anchor="middle">$0.056</text><rect class="bar" x="103.0" y="126.5" width="53.8" height="117.5" rx="4" fill="var(--series-2)"><title>bare (solver only), small: $0.085 per case, 6.2 turns, 79/81 right</title></rect><text class="val" x="129.9" y="120.5" text-anchor="middle">$0.085</text><text class="note" x="102.0" y="20.0" text-anchor="middle">&#8722;35%</text><text class="cat" x="102.0" y="266.0" text-anchor="middle">small</text><rect class="bar" x="217.2" y="152.9" width="53.8" height="91.1" rx="4" fill="var(--series-1)"><title>optlens, mid: $0.066 per case, 5.7 turns, 56/56 right</title></rect><text class="val" x="244.1" y="146.9" text-anchor="middle">$0.066</text><rect class="bar" x="275.0" y="91.2" width="53.8" height="152.8" rx="4" fill="var(--series-2)"><title>bare (solver only), mid: $0.111 per case, 8.3 turns, 56/56 right</title></rect><text class="val" x="301.9" y="85.2" text-anchor="middle">$0.111</text><text class="note" x="274.0" y="20.0" text-anchor="middle">&#8722;40%</text><text class="cat" x="274.0" y="266.0" text-anchor="middle">mid</text><rect class="bar" x="389.2" y="175.0" width="53.8" height="69.0" rx="4" fill="var(--series-1)"><title>optlens, large: $0.050 per case, 3.7 turns, 13/13 right</title></rect><text class="val" x="416.1" y="169.0" text-anchor="middle">$0.050</text><rect class="bar" x="447.0" y="124.1" width="53.8" height="119.9" rx="4" fill="var(--series-2)"><title>bare (solver only), large: $0.087 per case, 6.7 turns, 13/13 right</title></rect><text class="val" x="473.9" y="118.1" text-anchor="middle">$0.087</text><text class="note" x="446.0" y="20.0" text-anchor="middle">&#8722;42%</text><text class="cat" x="446.0" y="266.0" text-anchor="middle">large</text><rect class="bar" x="561.2" y="149.5" width="53.8" height="94.5" rx="4" fill="var(--series-1)"><title>optlens, too large to read: $0.069 per case, 6.1 turns, 16/16 right</title></rect><text class="val" x="588.1" y="143.5" text-anchor="middle">$0.069</text><rect class="bar" x="619.0" y="61.4" width="53.8" height="182.6" rx="4" fill="var(--series-2)"><title>bare (solver only), too large to read: $0.133 per case, 10.0 turns, 16/16 right</title></rect><text class="val" x="645.9" y="55.4" text-anchor="middle">$0.133</text><text class="note" x="618.0" y="20.0" text-anchor="middle">&#8722;48%</text><text class="cat" x="618.0" y="266.0" text-anchor="middle">too large to read</text></svg><figcaption>Mean cost per case and run, same cases; the percentage is optlens's saving. Hover a bar for turns and correctness.</figcaption></figure></div>
   <p style="margin:18px 0 0"><a href="benchmark/">How we measured it, and how six setups compare &rarr;</a></p>
@@ -55,29 +55,29 @@ codex mcp add optlens -- optlens-mcp                           # Codex (others: 
 
 <section><div class="wrap">
   <h2 class="sec">What it does</h2>
-  <p class="sub">Every answer comes from a solve, and every recommended fix is re-solved before it is offered.</p>
+  <p class="sub">optlens solves the model for every answer, and it re-solves every fix before it offers it.</p>
   <div class="cards">
     <div class="card"><h3>Why is it infeasible?</h3><p>The conflicting constraints (an IIS), grouped by family, even
     on models with hundreds of thousands of constraints.</p></div>
     <div class="card"><h3>What fixes it?</h3><p>The smallest change per family that restores feasibility, with the
-    best plan it allows, and inputs that break their own pattern, each with its undo already solved.</p></div>
+    best plan it allows. Also the inputs that break their own pattern, each with its undo already solved.</p></div>
     <div class="card"><h3>What if&hellip;?</h3><p>Edits as versions, why-not questions, marginal values and
     sensitivity, without touching your model code.</p></div>
     <div class="card"><h3>How do these plans differ?</h3><p>Changes against the closest optimal plan, so an edit shows
     what it forces, not the solver's choice among ties.</p></div>
     <div class="card"><h3>Which scenario is better?</h3><p>Open several models or scenarios side by side and compare
     status, objective and every family's metrics, or ask a what-if on one of them.</p></div>
-    <div class="card"><h3>What does this model mean?</h3><p>A model context generated once from your document or code:
-    each family's business meaning, checked against the model, saved as JSON your team reviews and reuses.</p></div>
+    <div class="card"><h3>What does this model mean?</h3><p>A model context, generated once from your document or code.
+    It gives each family's business meaning, checked against the model, as JSON your team reviews and reuses.</p></div>
   </div>
   <p style="margin:22px 0 0"><a href="ask/">Everything you can ask, tool by tool &rarr;</a></p>
 </div></section>
 
 <section class="demo"><div class="wrap">
   <h2 class="sec">In Claude Code</h2>
-  <p class="sub">A clean Claude Code with the optlens plugin, on the hotel pack's week after a data load typed one
-  night's group target as 1,200 instead of 120: it finds the cause, checks the fix by re-solving, then prices each
-  business rule. Rendered from a recorded session; each tool call shows its real duration.</p>
+  <p class="sub">A clean Claude Code with the optlens plugin works on the hotel pack's week. A data load typed one
+  night's group target as 1,200 instead of 120. The agent finds the cause, re-solves to check the fix, then prices
+  each business rule. The animation comes from a recorded session, and each tool call shows its real duration.</p>
   <img src="plugin-agent-demo.svg" alt="Claude Code with the optlens plugin finds why the week's hotel plan is
   infeasible, checks the fix, and ranks the business rules by the revenue they cost" loading="lazy">
   <p style="margin:18px 0 0">Try the same week yourself, in a setup of its own:
@@ -86,16 +86,17 @@ codex mcp add optlens -- optlens-mcp                           # Codex (others: 
 
 <section class="soft demo"><div class="wrap">
   <h2 class="sec">For business users</h2>
-  <p class="sub"><strong>optchat</strong>, a chat agent built on optlens, lets the people who act on a model's plan
-  (planners, analysts, managers) work with it in plain language. It keeps every change as a version, compares
-  scenarios side by side, carries a change across linked models (a new rate plan into the booking plan), and applies
-  nothing until the planner approves, recording each decision. Here a planner finds a data-entry error, approves the fix and asks what the
-  rules cost (waiting time cut to two seconds). Available on request: <a href="mailto:hello@optlens.dev">hello@optlens.dev</a>.</p>
+  <p class="sub"><strong>optchat</strong> is a chat agent built on optlens. Planners, analysts and managers, the people
+  who act on a model's plan, use it to work with the model in plain language. It keeps every change as a version and
+  compares scenarios side by side. It carries a change across linked models, such as a new rate plan into the booking
+  plan. It applies nothing until the planner approves, and it records each decision. In the recording, a planner finds
+  a data-entry error, approves the fix and asks what the rules cost. We cut the waiting time to two seconds. optchat is
+  available on request: <a href="mailto:hello@optlens.dev">hello@optlens.dev</a>.</p>
   <div class="stats" style="margin-bottom:30px">
     <div class="stat"><div class="n">4/4</div><div class="l">turns right with the hotel pack on a rate plan that feeds
     the booking plan; 2/4 without the pack, 1/4 for the coding agent with optlens</div></div>
     <div class="stat"><div class="n">Markdown</div><div class="l">is all a new business domain needs: the model's
-    document and a pack's skill; helpers only for linked models</div></div>
+    document and a pack's skill. Only linked models also need helper code.</div></div>
   </div>
   <img src="planner-agent-demo.svg" alt="A planner asks why the week's plan is infeasible, approves the fix, and asks
   which rule costs the most revenue" loading="lazy">
@@ -113,8 +114,8 @@ codex mcp add optlens -- optlens-mcp                           # Codex (others: 
   <div><h3>Where</h3><div class="pills"><span class="pill">Claude Code</span><span class="pill">Codex</span>
   <span class="pill">Cursor</span><span class="pill">Copilot</span><span class="pill">Claude Desktop</span>
   <span class="pill">Python</span></div>
-  <p style="color:var(--muted);font-size:15.5px">One MCP server, connected with one line; the agent gets the tools and
-  the method together. Local, on your machine.</p></div>
+  <p style="color:var(--muted);font-size:15.5px">One MCP server, connected with one line, gives the agent the tools and
+  the method. It runs locally, on your machine.</p></div>
 </div></section>
 
 <footer class="bottom"><div class="wrap">

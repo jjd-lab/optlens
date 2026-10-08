@@ -20,8 +20,8 @@
   <nav><a href="../">Home</a><a href="../ask/">What you can ask</a><a href="../examples/">Examples</a><a href="../benchmark/">Benchmark</a><a class="hide-sm" href="https://github.com/jjd-lab/optlens">GitHub</a></nav>
 </div></header>
 <article class="post"><h1 id="what-you-can-ask">What you can ask</h1>
-<p>Every question below is a tool: a <code>Session</code> method in Python, a tool of the MCP server (<code>optlens-mcp</code>, 22 tools) and
-the same in the Claude Code plugin. Ask in your own words; the agent picks the tools.</p>
+<p>Each question below maps to a tool. In Python the tool is a <code>Session</code> method. The MCP server (<code>optlens-mcp</code>, 22
+tools) and the Claude Code plugin have the same tools. Ask in your own words, and the agent picks the tools.</p>
 <h2 id="questions-and-tools">Questions and tools</h2>
 <div class="table"><table>
 <thead>
@@ -81,16 +81,16 @@ the same in the Claude Code plugin. Ask in your own words; the agent picks the t
 </table></div>
 <h2 id="models">Models</h2>
 <ul>
-<li><strong>Formats:</strong> LP and MPS files; Pyomo, gurobipy and PuLP models, from the object or from the script that builds it.</li>
-<li><strong>Linear and mixed-integer models (LP, MILP):</strong> every question above.</li>
-<li><strong>Quadratic objectives (QP, MIQP):</strong> a convex QP solves on HiGHS; a mixed-integer or non-convex one goes to SCIP,
-  chosen automatically.
-  Why a model is infeasible, its smallest fixes, what-ifs, plan comparisons and marginal values work as for a linear
-  model; feasibility does not depend on the objective. <code>marginal_value</code> matters more here, since a quadratic cost
-  changes at a different rate each way: it re-solves both ways. Shadow prices are reported for a convex objective;
-  sensitivity ranges are not.</li>
-<li><strong>Not supported:</strong> quadratic constraints, indicator and other general constraints, and SOS. Such a model is
-  rejected when it loads, with the reason.</li>
+<li><strong>Formats.</strong> LP and MPS files; Pyomo, gurobipy and PuLP models, from the object or from the script that builds it.</li>
+<li><strong>Linear and mixed-integer models (LP, MILP).</strong> Every question above works.</li>
+<li><strong>Quadratic objectives (QP, MIQP).</strong> A convex QP solves on HiGHS. optlens sends a mixed-integer or non-convex one
+  to SCIP automatically.
+  Infeasibility, smallest fixes, what-ifs, plan comparisons and marginal values work as for a linear model, because
+  feasibility does not depend on the objective. <code>marginal_value</code> matters more here. A quadratic cost changes at a
+  different rate in each direction, so <code>marginal_value</code> re-solves both ways. optlens reports shadow prices for a
+  convex objective, but not sensitivity ranges.</li>
+<li><strong>Not supported.</strong> Quadratic constraints, indicator and other general constraints, and SOS. optlens rejects such a
+  model when it loads and says why.</li>
 </ul>
 <h2 id="solvers">Solvers</h2>
 <div class="table"><table>
@@ -110,7 +110,7 @@ the same in the Claude Code plugin. Ask in your own words; the agent picks the t
 <tr>
 <td>SCIP</td>
 <td>LP, MILP, QP and MIQP, convex or not</td>
-<td>the <code>scip</code> extra; IIS for MIPs; stands in for HiGHS where HiGHS cannot do a step, and the result says so</td>
+<td>the <code>scip</code> extra; IIS for MIPs; runs the steps HiGHS cannot do, and the result says so</td>
 </tr>
 <tr>
 <td>Gurobi</td>
@@ -119,13 +119,13 @@ the same in the Claude Code plugin. Ask in your own words; the agent picks the t
 </tr>
 </tbody>
 </table></div>
-<p>How solver choice works (a Gurobi session stays on Gurobi, hard time limits, checked IIS): see
-<a href="https://github.com/jjd-lab/optlens#solvers">Solvers in the README</a>.</p>
+<p><a href="https://github.com/jjd-lab/optlens#solvers">Solvers in the README</a> explains how optlens picks a solver. It also
+covers why a Gurobi session stays on Gurobi, the hard time limits and how optlens checks an IIS.</p>
 <h2 id="limits">Limits</h2>
 <ul>
 <li>optlens works on a model that is already built; it does not write models.</li>
-<li>Sensitivity ranges hold for the solution's basis; at a degenerate solution the shadow price can differ on each side
-  of a limit, and <code>marginal_value</code> re-solves to check a change.</li>
+<li>Sensitivity ranges hold only for the solution's basis. At a degenerate solution, the shadow price can differ on
+  each side of a limit. <code>marginal_value</code> re-solves to check a change.</li>
 </ul>
 <p><a href="../benchmark/">How these were measured: the benchmark &rarr;</a></p><p><a href="../">&larr; Back to optlens</a></p></article>
 <footer class="bottom"><div class="wrap">
