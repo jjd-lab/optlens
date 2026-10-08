@@ -46,6 +46,19 @@ The plugin adds two things to Claude Code:
 API keys and tokens, and Claude Code asks before each call. Opening a `.py` model runs that file up to its first solve
 call. Open only models and code you trust. See [SECURITY.md](../SECURITY.md).
 
+**Where it works.** Fully in Claude Code. In Cowork, only when the session runs on your computer, since the server is
+a local process. In claude.ai chat the local server does not run, so only the skill loads there.
+
+**What it sends.** Nothing: optlens makes no network calls. The server runs on your machine, reads the model files you
+open and writes its saved context to `.optlens/` in your project.
+
+**Measured in Claude Code.** On 11 questions about the hotel pack's model, three runs each with `claude plugin eval`,
+Sonnet 5.5 with the plugin answered 32 of 33 right against 30 of 33 without it, in 65 % less time (73 % on a
+279,000-row model), at about the same cost on the small model and 38 % less on the large one. Opus 5.5: 32 of 33
+against 30 of 33, 30 % less time. Sonnet 5.5 with the plugin was as accurate as Opus with it, faster and half the
+cost, so it is the economical choice. The questions are in `evals/`; rerun them with `claude plugin eval plugin` from
+the repository root. Details: [optlens.dev/benchmark](https://optlens.dev/benchmark/#8-the-plugin-in-claude-code).
+
 ## Windows
 
 The engine and the plugin work on Windows, tested on Python 3.12 and 3.13. `scripts/sandbox.sh` needs bash. In

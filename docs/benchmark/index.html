@@ -30,8 +30,13 @@ six setups compare.</em></p>
 <li><strong>A coding agent with a solver already gets the answers right.</strong> On Claude Sonnet 5.5 it scores 95-100 % in every
   suite, with or without optlens. The cases are not easy. On Sonnet 5 the bare agent
   <a href="#1-correctness-level">left 5 of the first 27 unanswered</a>.</li>
-<li><strong>optlens's edge is cost and speed.</strong> It gives the same correct answers at <strong>35-48 % less cost</strong>. On models too large
-  to read, it takes <strong>35-61 % less time</strong>.</li>
+<li><strong>In our benchmark loop, optlens's edge is cost and speed.</strong> Called from the agent's own Python in a minimal agent
+  loop, it gives the same correct answers at <strong>35-48 % less cost</strong>. On models too large to read, it takes <strong>35-61 %
+  less time</strong>.</li>
+<li><strong>In Claude Code, the plugin is right more often and faster.</strong> On 11 questions about a hotel model, three runs each,
+  Sonnet 5.5 with the plugin answered <strong>32 of 33</strong> right against 30 without it, in <strong>65 % less time</strong> (73 % on a
+  279,000-row model). Cost was about the same on the small model and 38 % lower on the large one. On Opus 5.5 the
+  plugin saved 30 % of the time. <a href="#8-the-plugin-in-claude-code">Details</a>.</li>
 <li><strong>On linked models, a domain pack also wins on correctness.</strong> In one case a rate-plan change must flow into the
   booking plan. optchat with the hotel pack answered <strong>4/4</strong> turns right. The same agent without the pack got 2/4, and
   the coding agent with optlens got 1/4.</li>
@@ -42,10 +47,12 @@ six setups compare.</em></p>
   optchat, the planner agent, is available on request: hello@optlens.dev.</li>
 </ul>
 <h2 id="the-six-setups">The six setups</h2>
-<p>All six run Claude Sonnet 5.5. Every setup starts from <strong>the same first message</strong>. It holds the model's context and
+<p>All six run Claude Sonnet 5.5. All but the plugin run through our own minimal agent loop (a short system prompt and
+the tools), not Claude Code; <a href="#8-the-plugin-in-claude-code">section 8</a> measures the plugin in Claude Code itself.
+Every setup starts from <strong>the same first message</strong>. It holds the model's context and
 the question, and the agent can ask for the model's document. The setups differ only in what the agent can call.</p>
-<p><strong>The model context</strong> lists each constraint and variable family with its business meaning, plus the documented
-result. optlens generates it once from the model's document or code. An LLM writes the meanings, and optlens checks
+<p><strong>The model context</strong> lists each constraint and variable family with its business meaning (in the benchmark, also
+the documented result). optlens generates it once from the model's document or code. An LLM writes the meanings, and optlens checks
 them against the model's actual families. optlens keeps the context as JSON you can review and commit. It shows the
 context the same way in every session, so every agent and every person describes the model in the same words. In
 Claude Code, the plugin creates the context the first time you open a model.</p>
@@ -437,7 +444,8 @@ hotels with group-wide constraints, so the model no longer splits into one hotel
 <p>Calling optlens from code is the cheapest setup, because one call runs several steps on one model load. <strong>Claude
 Code with the plugin</strong> answered 5/5 questions that compare three ad-allocation scenarios. The scenarios are three
 9,680-variable MIPs opened side by side. The questions asked for status and objectives, a what-if on one scenario, and
-the smallest feasible budget of another. Each question cost $0.14. This was a small test.</p>
+the smallest feasible budget of another. Each question cost $0.14. This was a small test; section 8 measures the
+plugin properly.</p>
 <h3 id="5-optchat-and-domain-packs">5. optchat and domain packs</h3>
 <p>Each cell shows the turns answered right and the mean cost per conversation:</p>
 <div class="table"><table>
@@ -536,6 +544,83 @@ changes the edit forces, which add up to the +32.4 cost. A plain diff would have
 <p>optlens flags inputs that break their own pattern. Examples are a limit unlike its siblings', a flipped sense, an
 out-of-scale coefficient and a missing constraint. It solves each flag's undo, alone and together. On 221 cases with a
 known error, it gave a verified correct fix for 47 and a wrong one for 2.</p>
+<h3 id="8-the-plugin-in-claude-code">8. The plugin in Claude Code</h3>
+<p>The numbers above come from our own minimal agent loop. A user who installs the plugin gets Claude Code instead, which
+brings its own context to every step. So we measured the plugin there too, with Claude Code's <code>claude plugin eval</code>:
+the same question asked in a fresh Claude Code session with the plugin and without it (Claude Code with Bash and
+Python, so it can write its own solver code). Three runs each. The questions are about the hotel pack's model: seven
+on a 14-night week (2,700 rows) and four on a hotel group over a year (279,000 rows), covering a mistyped input, a plan
+that solves but earns too much, a linking-row typo, rule costs, what-ifs and three scenarios side by side.</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>model</th>
+<th>questions</th>
+<th>with the plugin</th>
+<th>without</th>
+<th>time saved</th>
+<th>cost saved</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sonnet 5.5</td>
+<td>14-night hotel week (2,700 rows), 7 questions</td>
+<td>20/21 right, 36 s, $0.15</td>
+<td>18/21 right, 59 s, $0.16</td>
+<td>38%</td>
+<td>3%</td>
+</tr>
+<tr>
+<td>Sonnet 5.5</td>
+<td>Hotel group over a year (279,000 rows), 4 questions</td>
+<td>12/12 right, 91 s, $0.16</td>
+<td>12/12 right, 332 s, $0.25</td>
+<td>73%</td>
+<td>38%</td>
+</tr>
+<tr>
+<td>Sonnet 5.5</td>
+<td>All 11 questions</td>
+<td>32/33 right, 56 s, $0.16</td>
+<td>30/33 right, 158 s, $0.19</td>
+<td>65%</td>
+<td>19%</td>
+</tr>
+<tr>
+<td>Opus 5.5</td>
+<td>14-night hotel week (2,700 rows), 7 questions</td>
+<td>20/21 right, 47 s, $0.31</td>
+<td>18/21 right, 60 s, $0.32</td>
+<td>22%</td>
+<td>5%</td>
+</tr>
+<tr>
+<td>Opus 5.5</td>
+<td>Hotel group over a year (279,000 rows), 4 questions</td>
+<td>12/12 right, 112 s, $0.33</td>
+<td>12/12 right, 171 s, $0.39</td>
+<td>35%</td>
+<td>15%</td>
+</tr>
+<tr>
+<td>Opus 5.5</td>
+<td>All 11 questions</td>
+<td>32/33 right, 70 s, $0.32</td>
+<td>30/33 right, 100 s, $0.35</td>
+<td>30%</td>
+<td>9%</td>
+</tr>
+</tbody>
+</table></div>
+<p>Sessions right out of three runs per question; time and cost are means per session.</p>
+<p>On the year model, Claude without the plugin parses the 121 MB file again in every script; the plugin keeps the
+model loaded. Without the plugin it missed most on questions that need a method (what a closure is worth, which rule
+costs most). On the small model the plugin's answers cost about the same. Opus 5.5 writes good solver code itself, so
+the plugin helps it less; Sonnet 5.5 with the plugin was as accurate as Opus with it, faster and half the cost.</p>
+<p>The questions, graders and scripts are public in the optlens repository (<code>plugin/evals</code>): run
+<code>claude plugin eval plugin</code> there to check them yourself. One more question, on an anonymous Netlib model, is in the
+suite but left out above: its grader passed and failed the same answer from run to run.</p>
 <h2 id="what-optlens-adds-when-the-agent-is-already-right">What optlens adds when the agent is already right</h2>
 <p>optlens also saves cost and time, but there is more. Conflicts, flags, fixes and plan diffs come from tested code,
 not from a script the agent wrote in this session. optlens also re-solves every recommended fix before it offers it.</p>
@@ -545,7 +630,10 @@ not from a script the agent wrote in this session. optlens also re-solves every 
 <li>Each setting had one or two runs. The messy week with the pack had three.</li>
 <li>Every correctness suite is saturated, so these cases cannot show further gains in correctness.</li>
 <li>The largest models are one synthetic family, hotel revenue management. They give 16 cases and 2 conversations.</li>
-<li>The plugin row is 5 questions. The optchat rows are one run each, and the two-stage rate plan is one conversation.</li>
+<li>The plugin row in section 4 is 5 questions. The optchat rows are one run each, and the two-stage rate plan is one
+  conversation.</li>
+<li>The Claude Code results (section 8) are 11 questions on one model family, three runs per setup, on Sonnet 5.5 and
+  Opus 5.5.</li>
 <li>Gurobi was tested only with its size-limited licence.</li>
 </ul>
 <h2 id="try-it">Try it</h2>
@@ -554,7 +642,7 @@ not from a script the agent wrote in this session. optlens also re-solves every 
 <p>Then connect it once to Claude Code, Codex, Cursor, VS Code or Claude Desktop. The
 <a href="https://github.com/jjd-lab/optlens#use-it-with-your-agent">README</a> has the line for each.</p>
 <p>The benchmark itself stays private, so that it keeps measuring new versions of optlens fairly. A script generates
-the tables above from its recorded runs. Problems with your own models are the most useful feedback we can get. Open
+the tables above from its recorded runs. The Claude Code questions of section 8 are public, so you can rerun them. Problems with your own models are the most useful feedback we can get. Open
 a GitHub issue or write to hello@optlens.dev.</p>
 <h2 id="credits">Credits</h2>
 <p>Business example models from Gurobi's modeling-examples (Apache-2.0). Two-error and cascading cases from

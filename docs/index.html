@@ -36,15 +36,17 @@ codex mcp add optlens -- optlens-mcp                           # Codex (others: 
 <section class="soft"><div class="wrap">
   <h2 class="sec">Measured on 400 cases</h2>
   <p class="sub">Infeasible, wrong and working LP and MILP models of up to 837,000 constraints, each case with a
-  solver-verified answer key. We compare Claude with optlens against the same agent given only a solver. Both get the
-  same model context.</p>
+  solver-verified answer key. We compare Claude with optlens against the same agent given only a solver, both in our
+  own minimal agent loop with the same model context. We also measured the plugin in Claude Code itself.</p>
   <div class="stats">
     <div class="stat"><div class="n">95-100 %</div><div class="l">correct in every suite, with or without
     optlens</div></div>
     <div class="stat"><div class="n">35-48 %</div><div class="l">lower cost for the same correct answers, growing with
-    model size</div></div>
+    model size (optlens called from the agent's code)</div></div>
     <div class="stat"><div class="n">35-61 %</div><div class="l">less time on models too large to read (279,000 to
     837,000 constraints)</div></div>
+    <div class="stat"><div class="n">32/33</div><div class="l">right in Claude Code with the plugin, against 30/33
+    without it, in 65 % less time (Sonnet 5.5, three runs of 11 questions)</div></div>
     <div class="stat"><div class="n">755 &rarr; 9</div><div class="l">variables reported as changed after one edit to an
     ad-allocation MIP. A plain diff counts 755, mostly the solver switching between equally good plans. optlens shows
     the 9 the edit forces.</div></div>
