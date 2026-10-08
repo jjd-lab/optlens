@@ -81,7 +81,7 @@
   duals), `md.lp_relaxation()` and that a model is frozen; the skill keeps a MIP effect to its proven range (an LP
   relaxation's change is only an indication). A model that imports a missing package says which Python to install it
   into.
-- `run_python`'s worker starts from the server's solve of the original model instead of solving it again (in E62 a
+- `run_python`'s worker starts from the server's solve of the original model instead of solving it again (in a trial a
   90 s what-if after the worker's own 45 s base solve overran the 100 s call), and its `time_limit` may ask for up to
   15 s less than the call. Thousands of `set_rhs` changes apply 28x faster: a check compared the row count with `is not`
   and rebuilt the name sets for every change (6,240 changes took about 42 s on a 24k-row model, now 2 s).
@@ -99,13 +99,13 @@
   integers the LP uses rounded up and the LP solved with them fixed, else the integers it leaves whole kept and the
   rest solved as a small MIP. It takes at most a fifth of the solve limit (the solve gets the rest); the result says
   when a start was used, and keeps the start when the solver returns nothing better. On a 24k-row setup-run MILP the
-  solvers' own plans stayed at a 68 % gap for 300 s; from the start the gap is 3 % at 45 s (M08, M09). Backends take
+  solvers' own plans stayed at a 68 % gap for 300 s; from the start the gap is 3 % at 45 s. Backends take
   `start=` (HiGHS, SCIP, Gurobi).
 - `OPTLENS_CALL_LIMIT` (seconds per MCP tool call, default 60, at least 30) sets the server's limits together: solves
   15 s less, a large MIP's IIS search 20 s less, `run_python` calls 10 s less, and `run_python`'s session solves inside
   that. The Claude Code CLI waits longer than 60 s for a tool call, so its users can give slow MIP solves minutes; the
   plugin passes the variable through. The 60 s default keeps clients that stop at 60 s (Claude Desktop) working.
-  The plugin's default is 300, and its server's `timeout` is 10 minutes: Claude Code stops a tool call at
+  The plugin's default is 300 (later 110, above), and its server's `timeout` is 10 minutes: Claude Code stops a tool call at
   `MCP_TOOL_TIMEOUT`, which an environment may set to 60 s (a cloud session did, and `open_model` timed out while its
   base solve ran); the server's own `timeout` overrides it. The instructions tell an agent whose call timed out to
   have the user lower `OPTLENS_CALL_LIMIT` rather than solve the model another way. A tool's `time_limit`, and the

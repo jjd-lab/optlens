@@ -2,8 +2,8 @@
 infeasible model, how to explain a solution. Shared by every agent built on optlens (the plugin skill's
 guidance among them), so the method is written once. ``{UPSTREAM_RULE}`` in
 INFEASIBILITY is a slot for an optional extra rule (method(upstream=...)). SERVER_INSTRUCTIONS is the same method
-written for an MCP client: the server sends it at connection, and the Claude Code plugin's skill carries it verbatim
-(tests/test_plugin.py keeps the two equal).
+written for an MCP client: the server sends it at connection, and the Claude Code plugin's skill points to it
+(tests/test_plugin.py keeps the skill short).
 """
 
 EVIDENCE = """<Evidence>

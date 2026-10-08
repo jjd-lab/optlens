@@ -43,7 +43,7 @@ codex mcp add optlens -- optlens-mcp                           # Codex (others: 
     optlens</div></div>
     <div class="stat"><div class="n">35-48 %</div><div class="l">lower cost for the same correct answers, growing with
     model size (optlens called from the agent's code)</div></div>
-    <div class="stat"><div class="n">35-61 %</div><div class="l">less time on models too large to read (279,000 to
+    <div class="stat"><div class="n">43-71 %</div><div class="l">less time on models too large to read (279,000 to
     837,000 constraints)</div></div>
     <div class="stat"><div class="n">32/33</div><div class="l">right in Claude Code with the plugin, against 30/33
     without it, in 65 % less time (Sonnet 5.5, three runs of 11 questions)</div></div>
@@ -92,7 +92,7 @@ codex mcp add optlens -- optlens-mcp                           # Codex (others: 
   who act on a model's plan, use it to work with the model in plain language. It keeps every change as a version and
   compares scenarios side by side. It carries a change across linked models, such as a new rate plan into the booking
   plan. It applies nothing until the planner approves, and it records each decision. In the recording, a planner finds
-  a data-entry error, approves the fix and asks what the rules cost. We cut the waiting time to two seconds. optchat is
+  a data-entry error, approves the fix and asks what the rules cost. In the recording, waits longer than two seconds are cut to two. optchat is
   available on request: <a href="mailto:hello@optlens.dev">hello@optlens.dev</a>.</p>
   <div class="stats" style="margin-bottom:30px">
     <div class="stat"><div class="n">4/4</div><div class="l">turns right with the hotel pack on a rate plan that feeds

@@ -31,7 +31,7 @@ six setups compare.</em></p>
   suite, with or without optlens. The cases are not easy. On Sonnet 5 the bare agent
   <a href="#1-correctness-level">left 5 of the first 27 unanswered</a>.</li>
 <li><strong>In our benchmark loop, optlens's edge is cost and speed.</strong> Called from the agent's own Python in a minimal agent
-  loop, it gives the same correct answers at <strong>35-48 % less cost</strong>. On models too large to read, it takes <strong>35-61 %
+  loop, it gives the same correct answers at <strong>35-48 % less cost</strong>. On models too large to read, it takes <strong>43-71 %
   less time</strong>.</li>
 <li><strong>In Claude Code, the plugin is right more often and faster.</strong> On 11 questions about a hotel model, three runs each,
   Sonnet 5.5 with the plugin answered <strong>32 of 33</strong> right against 30 without it, in <strong>65 % less time</strong> (73 % on a
@@ -78,7 +78,7 @@ Claude Code, the plugin creates the context the first time you open a model.</p>
 <tr>
 <td><strong>Code</strong> (<em>"optlens"</em> in the tables)</td>
 <td>optlens preloaded in its Python, called from its own code</td>
-<td>the plugin's <code>run_python</code></td>
+<td>what the plugin's <code>run_python</code> offers</td>
 </tr>
 <tr>
 <td><strong>Claude Code + plugin</strong></td>
@@ -622,11 +622,11 @@ the plugin helps it less; Sonnet 5.5 with the plugin was as accurate as Opus wit
 <code>claude plugin eval plugin</code> there to check them yourself. One more question, on an anonymous Netlib model, is in the
 suite but left out above: its grader passed and failed the same answer from run to run.</p>
 <h2 id="what-optlens-adds-when-the-agent-is-already-right">What optlens adds when the agent is already right</h2>
-<p>optlens also saves cost and time, but there is more. Conflicts, flags, fixes and plan diffs come from tested code,
+<p>Conflicts, flags, fixes and plan diffs come from tested code,
 not from a script the agent wrote in this session. optlens also re-solves every recommended fix before it offers it.</p>
 <h2 id="limits">Limits</h2>
 <ul>
-<li>We tested one model family, Claude Sonnet 5.5. Sonnet 5 ran only on the first 27 cases, as shown above.</li>
+<li>Sections 1-7 ran Claude Sonnet 5.5. Sonnet 5 ran only on the first 27 cases, as shown above.</li>
 <li>Each setting had one or two runs. The messy week with the pack had three.</li>
 <li>Every correctness suite is saturated, so these cases cannot show further gains in correctness.</li>
 <li>The largest models are one synthetic family, hotel revenue management. They give 16 cases and 2 conversations.</li>
@@ -634,7 +634,7 @@ not from a script the agent wrote in this session. optlens also re-solves every 
   conversation.</li>
 <li>The Claude Code results (section 8) are 11 questions on one model family, three runs per setup, on Sonnet 5.5 and
   Opus 5.5.</li>
-<li>Gurobi was tested only with its size-limited licence.</li>
+<li>The benchmark ran Gurobi only on its size-limited license.</li>
 </ul>
 <h2 id="try-it">Try it</h2>
 <pre><code>pip install &quot;optlens[scip,mcp]&quot;

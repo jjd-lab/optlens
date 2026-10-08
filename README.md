@@ -79,7 +79,7 @@ HiGHS comes with the core, and SCIP and Gurobi are extras. Pick one with `OPTLEN
 or `auto`, the default), with `open_model`'s `solver` in the MCP server, or with `Session(..., prefer=...)`. Under
 `auto` without Gurobi, each model goes to HiGHS or SCIP. A larger MIP's first solve races both.
 
-- **Every solve has a hard time limit.** Solvers do not always honour their own limits. SCIP once ran 862 s on a
+- **Every solve has a hard time limit.** Solvers do not always honor their own limits. SCIP once ran 862 s on a
   30 s limit. So each solve runs in a worker process, and optlens stops the process at the limit.
 - **Gurobi does every step itself.** A Gurobi session solves, computes IIS, relaxes, ranges and checks on Gurobi. It
   hands no step to another solver. Say you chose Gurobi and it cannot run a model, because it is not installed or the
@@ -138,7 +138,7 @@ once. The context says what each constraint and variable family means. It is JSO
 can review and commit. Then the agent works through the tools. For several steps or many solves it uses `run_python`.
 That is a persistent Python process with the engine preloaded as `session` and the model loaded once.
 
-The Claude Code plugin is the same server plus a skill that carries the same method ([plugin/README.md](https://github.com/jjd-lab/optlens/blob/main/plugin/README.md)).
+The Claude Code plugin is the same server plus a short skill that points to the server's method ([plugin/README.md](https://github.com/jjd-lab/optlens/blob/main/plugin/README.md)).
 
 **Security.** optlens runs code on your machine, with your permissions, and has no sandbox. `run_python` executes
 the code the agent writes. Its process starts without your API keys and tokens, but it can read and write whatever
@@ -188,8 +188,8 @@ Write to **hello@optlens.dev** with questions, feedback on your own models, or a
 optchat is the chat agent built on optlens for business users. For bugs and feature requests, open a GitHub issue.
 
 Here is a planner's session with optchat on the hotel pack's model, a 14-night plan. A data load typed one night's
-group target as 1,200 instead of 120. Each answer ends with the engine calls, time and cost it took. We cut the waiting
-time to two seconds:
+group target as 1,200 instead of 120. Each answer ends with the engine calls, time and cost it took. In the recording,
+waits longer than two seconds are cut to two:
 
 ![A planner asks why the week's plan is infeasible, approves the fix, and asks which rule costs the most revenue](https://raw.githubusercontent.com/jjd-lab/optlens/main/docs/planner-agent-demo.svg)
 

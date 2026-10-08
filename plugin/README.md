@@ -1,13 +1,16 @@
 # optlens Claude Code plugin
 
-The plugin is the optlens MCP server (`optlens-mcp`, 22 tools) plus the `optlens` skill. The skill carries the same
-method that the server sends every MCP client (see "Use it with your agent" in the [README](../README.md)).
+The plugin is the optlens MCP server (`optlens-mcp`, 22 tools) plus the `optlens` skill. The server sends its method to
+every MCP client (see "Use it with your agent" in the [README](../README.md)), and the skill points Claude to it.
 
 ```bash
 pip install "optlens[scip,mcp]"   # add [gurobi] if you have a license
 claude plugin marketplace add jjd-lab/optlens
 claude plugin install optlens@optlens
 ```
+
+The server (`optlens-mcp`) must be on the PATH Claude Code sees: start `claude` from a shell where that Python
+environment is active, or put its `bin` folder on the PATH.
 
 In a session, `/plugin marketplace add jjd-lab/optlens` then `/plugin install optlens@optlens` does the same. To try
 a checkout without installing, start Claude Code with `claude --plugin-dir plugin` from the repository root.
@@ -24,7 +27,7 @@ HiGHS or SCIP.
 server, including `run_python`, which runs the agent's code. To keep `run_python` asking, allow the other tools by
 name instead, such as `mcp__plugin_optlens_optlens__open_model`.
 
-The server (`optlens-mcp`) must be on the PATH Claude Code sees. On macOS, keep the venv out of folders that iCloud
+On macOS, keep the venv out of folders that iCloud
 syncs, such as `~/Documents` and `~/Desktop`. iCloud flags files hidden, and Python 3.13 skips hidden `.pth` files.
 Then an editable install's `optlens-mcp` cannot import the package. Running `chflags nohidden` on the `.pth` files
 fixes it. `OPTLENS_SOLVER` picks the solver ([Solvers](../README.md#solvers)).
@@ -39,8 +42,8 @@ The plugin adds two things to Claude Code:
   background. The plugin also sets its server's `timeout` to 10 minutes, which overrides a shorter
   `MCP_TOOL_TIMEOUT` (some environments set 60 s). To change the limit, set `OPTLENS_CALL_LIMIT` (seconds, 30 to 590)
   before starting `claude`. `open_model` states the limits in force, and results say when a limit cut them short.
-- **The `optlens` skill.** It says how to diagnose, explain and compare, in the same text as the server's
-  instructions.
+- **The `optlens` skill.** It tells Claude to follow the server's method, and what to do when the optlens tools
+  are missing.
 
 **Security.** `run_python` executes the code the agent writes, with your permissions. Its process starts without your
 API keys and tokens, and Claude Code asks before each call. Opening a `.py` model runs that file up to its first solve
@@ -55,8 +58,9 @@ open and writes its saved context to `.optlens/` in your project.
 **Measured in Claude Code.** On 11 questions about the hotel pack's model, three runs each with `claude plugin eval`,
 Sonnet 5.5 with the plugin answered 32 of 33 right against 30 of 33 without it, in 65 % less time (73 % on a
 279,000-row model), at about the same cost on the small model and 38 % less on the large one. Opus 5.5: 32 of 33
-against 30 of 33, 30 % less time. Sonnet 5.5 with the plugin was as accurate as Opus with it, faster and half the
-cost, so it is the economical choice. The questions are in `evals/`; rerun them with `claude plugin eval plugin` from
+against 30 of 33, 30 % less time. Sonnet 5.5 with the plugin was as accurate as Opus with it, faster and at half the
+cost. The suite in `evals/` has a twelfth question, on an anonymous Netlib model, left out of these numbers
+because its grader passed and failed the same answer from run to run. Rerun the suite with `claude plugin eval plugin` from
 the repository root. Details: [optlens.dev/benchmark](https://optlens.dev/benchmark/#8-the-plugin-in-claude-code).
 
 ## Windows
