@@ -37,6 +37,22 @@ def two_ways() -> od.ModelData:
                         col_names=("x", "y"), row_names=("need", "cap_x", "cap_y"))
 
 
+def furniture() -> od.ModelData:
+    # two plants (north 400 h, south 150 h) and contracts for 120 chairs (1 h), 60 tables (3 h) and 70 desks (5 h,
+    # north only): 650 h needed, 550 available. The one minimal fix within the contracts is 20 fewer desks.
+    products, plants = [("chairs", 1.0, 20.0, 120.0), ("tables", 3.0, 70.0, 60.0), ("desks", 5.0, 130.0, 70.0)], ["north", "south"]
+    cols = [(p, k) for p, *_ in products for k in plants]
+    cap = [[h if k == kk else 0.0 for (p, kk) in cols for (pp, h, *_) in products if pp == p] for k in plants]
+    con = [[1.0 if pp == p else 0.0 for (pp, _) in cols] for p, *_ in products]
+    A = sp.csr_matrix(np.array(cap + con))
+    return od.ModelData(name="m", minimize=False, obj=np.array([v for _, _, v, _ in products for _ in plants]), obj_offset=0.0,
+                        A=A, row_lo=np.array([-od.INF, -od.INF] + [c for *_, c in products]),
+                        row_hi=np.array([400.0, 150.0, od.INF, od.INF, od.INF]), col_lb=np.zeros(6),
+                        col_ub=np.array([od.INF] * 5 + [0.0]), is_int=np.zeros(6, bool),
+                        col_names=tuple(f"make[{p},{k}]" for p, k in cols),
+                        row_names=("capacity[north]", "capacity[south]", "contract[chairs]", "contract[tables]", "contract[desks]"))
+
+
 class PlanLanguage(unittest.TestCase):
     def test_a_schedule_change_reads_as_a_pattern(self):
         s = Session({"v0": Version(schedule(), None, "original")})
@@ -81,6 +97,13 @@ class PlanLanguage(unittest.TestCase):
         self.assertAlmostEqual(r.total_violation, 2.0)
         self.assertEqual([c["name"] for c in r.relaxations], ["cap_x"])
         self.assertAlmostEqual(r.objective, 3 * 6 + 1 * 4)
+
+    def test_the_best_plan_phase_leaves_no_solver_noise_in_the_fix(self):
+        # the best-plan solve returned 19.9999999685 on contract[desks] plus 5e-8 on contract[tables], which the
+        # scale-back then spread over both: the fix must be the exact minimum on the one row that moves
+        r = od.feas_relax(furniture(), od.BACKENDS["highs"], only={"contract"}, min_objective=True)
+        self.assertEqual([(c["name"], c["value"]) for c in r.relaxations], [("contract[desks]", 20.0)])
+        self.assertEqual(r.total_violation, 20.0)
 
     def test_scaling_back_respects_the_penalty(self):
         r = od.feas_relax(two_ways(), od.BACKENDS["highs"], only={"cap_x", "cap_y"}, penalty=0.5, min_objective=True)

@@ -90,12 +90,15 @@ def elastic_model(md: ModelData, relax_rows: bool = True, relax_bounds: bool = F
 
 
 def feas_relax(md: ModelData, backend: Backend, relax_rows: bool = True, relax_bounds: bool = False,
-               penalty: float = 1.0, time_limit: float = 60.0, tol: float = 1e-9,
+               penalty: float = 1.0, time_limit: float = 60.0, tol: float = 1e-7,
                only: set[str] | None = None, min_objective: bool = False) -> RelaxResult:
     """The smallest total (penalized) change that makes the model feasible. With ``min_objective`` (Gurobi's
     minrelax=True) a second solve keeps the total at that minimum and optimizes the original objective, so the
     plan and the split of the change among the relaxed rows are the best ones for the business; skipped when the
-    first solve stopped at its time limit (its total is then not proven minimal). Both solves share ``time_limit``."""
+    first solve stopped at its time limit (its total is then not proven minimal). Both solves share ``time_limit``.
+    A change below ``tol`` relative to its bound (1 + |bound|) is solver noise, within the feasibility tolerance
+    the solvers already allow, and is dropped: the second solve leaves such residues on other rows, and they
+    would skew the real change when the total is scaled back to the minimum (20 printed as 19.9999999475)."""
     em = elastic_model(md, relax_rows, relax_bounds, penalty, only)
     t0 = time.time()
     res = backend.solve(em, time_limit)
@@ -122,14 +125,17 @@ def feas_relax(md: ModelData, backend: Backend, relax_rows: bool = True, relax_b
             res, objective = res2, float(res2.obj)
     relaxations = []
     for j in range(md.num_cols, em.num_cols):
-        if res.x[j] > tol:
+        if res.x[j] > 0:
             prefix, _, target = em.col_names[j].partition("_")
             kind, direction = _DIRECTION[prefix]
-            relaxations.append({"type": kind, "name": target, "direction": direction, "value": float(res.x[j])})
+            r = {"type": kind, "name": target, "direction": direction, "value": float(res.x[j])}
+            if r["value"] > tol * (1 + abs(_current_bound(md, r)[1])):
+                relaxations.append(r)
     if objective is not None and relaxations:
-        # phase 2 chose the split; within solver tolerance it can overshoot the minimum, so scale back to it
+        # phase 2 chose the split; within solver tolerance its total can land either side of the proven minimum
+        # (an undershoot puts the printed fix on the infeasible side: 19.9999999685 for 20), so scale it to the minimum
         over = penalty * sum(r["value"] for r in relaxations) / float(phase1_total) if phase1_total else 1.0
-        if over > 1:
+        if over > 0 and over != 1:
             relaxations = [{**r, "value": r["value"] / over} for r in relaxations]
     relaxations = _snap_integral(md, relaxations)
     total = float(sum(r["value"] for r in relaxations)) if relaxations else (0.0 if objective is not None else float(res.obj))
@@ -193,17 +199,21 @@ def relaxed_bounds(md: ModelData, relaxations: list[dict]) -> list[dict]:
     26,091,666.67 printed as 2.60917e+07 = 26,091,700 was INFEASIBLE)."""
     out = []
     for r in relaxations:
-        if r["type"] == "constraint":
-            i = md.row_index(r["name"])
-            lower = r["direction"].endswith("decreased by")   # ArtP: activity was below row_lo
-            cur = md.row_lo[i] if lower else md.row_hi[i]
-        else:
-            j = md.col_index(r["name"])
-            lower = r["direction"].startswith("lower")
-            cur = md.col_lb[j] if lower else md.col_ub[j]
+        lower, cur = _current_bound(md, r)
         out.append({**r, "side": "lower" if lower else "upper", "current": float(cur),
                     "new": float(cur - r["value"] if lower else cur + r["value"])})
     return out
+
+
+def _current_bound(md: ModelData, r: dict) -> tuple[bool, float]:
+    """Which side a relaxation moves (True: the lower bound) and that bound's current value."""
+    if r["type"] == "constraint":
+        i = md.row_index(r["name"])
+        lower = r["direction"].endswith("decreased by")   # ArtP: activity was below row_lo
+        return lower, float(md.row_lo[i] if lower else md.row_hi[i])
+    j = md.col_index(r["name"])
+    lower = r["direction"].startswith("lower")
+    return lower, float(md.col_lb[j] if lower else md.col_ub[j])
 
 
 def _feasibility_version(md: ModelData) -> ModelData:

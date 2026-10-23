@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pyomo model infeasible: how to find which constraints conflict | optlens</title>
+<meta name="description" content="Why log_infeasible_constraints shows nothing after an infeasible solve, where Pyomo&#x27;s MIS tool works, and how to get the IIS of a Pyomo model on HiGHS. Worked example with code.">
+<link rel="canonical" href="https://optlens.dev/guides/pyomo-infeasible/">
+<meta property="og:title" content="Pyomo model infeasible: how to find which constraints conflict | optlens">
+<meta property="og:description" content="Why log_infeasible_constraints shows nothing after an infeasible solve, where Pyomo&#x27;s MIS tool works, and how to get the IIS of a Pyomo model on HiGHS. Worked example with code.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://optlens.dev/guides/pyomo-infeasible/">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../style.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="../../">opt<span>lens</span></a>
+  <nav><a href="../../">Home</a><a href="../../ask/">What you can ask</a><a href="../../examples/">Examples</a><a href="../../benchmark/">Benchmark</a><a class="hide-sm" href="https://github.com/jjd-lab/optlens">GitHub</a></nav>
+</div></header>
+<article class="post"><h1 id="pyomo-model-infeasible-how-to-find-which-constraints-conflict">Pyomo model infeasible: how to find which constraints conflict</h1>
+<p>Pyomo reports <code>termination_condition: infeasible</code> and stops there. This guide tries Pyomo's own tools on a small
+infeasible model, shows where each one helps and where it doesn't, and then gets the conflicting constraints in a few
+lines, on HiGHS or Gurobi.</p>
+<h2 id="the-model">The model</h2>
+<p>One week of furniture production: two plants, three products, contracts for 120 chairs, 60 tables and 70 desks. The
+south plant is in maintenance, so it has 150 hours instead of 300.</p>
+<pre><code class="language-python">&quot;&quot;&quot;A week's furniture production plan, infeasible: the south plant is down for maintenance (150 hours instead of 300),
+and the contracts still need 650 hours. The model behind the guides on optlens.dev.&quot;&quot;&quot;
+import pyomo.environ as pyo
+
+PRODUCTS = {&quot;chairs&quot;: 1, &quot;tables&quot;: 3, &quot;desks&quot;: 5}         # hours per unit
+PROFIT = {&quot;chairs&quot;: 20, &quot;tables&quot;: 70, &quot;desks&quot;: 130}
+CONTRACT = {&quot;chairs&quot;: 120, &quot;tables&quot;: 60, &quot;desks&quot;: 70}     # units promised to customers this week
+MARKET = {&quot;chairs&quot;: 300, &quot;tables&quot;: 120, &quot;desks&quot;: 100}     # most the market takes
+HOURS = {&quot;north&quot;: 400, &quot;south&quot;: 150}                      # south: maintenance week
+STORAGE = 400                                             # units the warehouse holds
+
+m = pyo.ConcreteModel(&quot;furniture_week&quot;)
+m.make = pyo.Var(PRODUCTS, HOURS, domain=pyo.NonNegativeReals)
+m.make[&quot;desks&quot;, &quot;south&quot;].setub(0)                         # desks are made only in the north
+m.profit = pyo.Objective(expr=sum(PROFIT[p] * m.make[p, k] for p in PRODUCTS for k in HOURS), sense=pyo.maximize)
+m.capacity = pyo.Constraint(HOURS, rule=lambda m, k: sum(PRODUCTS[p] * m.make[p, k] for p in PRODUCTS) &lt;= HOURS[k])
+m.contract = pyo.Constraint(PRODUCTS, rule=lambda m, p: sum(m.make[p, k] for k in HOURS) &gt;= CONTRACT[p])
+m.market = pyo.Constraint(PRODUCTS, rule=lambda m, p: sum(m.make[p, k] for k in HOURS) &lt;= MARKET[p])
+m.storage = pyo.Constraint(expr=sum(m.make[p, k] for p in PRODUCTS for k in HOURS) &lt;= STORAGE)
+</code></pre>
+<p>The contracts need 650 hours and the plants have 550, so no plan exists. In this small model you can work that out by
+hand. Let's see what the tools find.</p>
+<h2 id="log_infeasible_constraints-not-after-an-infeasible-solve"><code>log_infeasible_constraints</code>: not after an infeasible solve</h2>
+<p>The first tool most answers point to is <code>pyomo.util.infeasible.log_infeasible_constraints</code>:</p>
+<pre><code class="language-python">import logging
+import pyomo.environ as pyo
+from pyomo.util.infeasible import log_infeasible_constraints
+from furniture_week import m
+
+logging.basicConfig(format=&quot;%(message)s&quot;)
+logging.getLogger(&quot;pyomo.util.infeasible&quot;).setLevel(logging.INFO)
+pyo.SolverFactory(&quot;appsi_highs&quot;).solve(m, load_solutions=False)
+log_infeasible_constraints(m)
+</code></pre>
+<pre><code class="language-text">CONSTR capacity[south]: evaluation error &lt;?= 150.0
+CONSTR capacity[north]: evaluation error &lt;?= 400.0
+CONSTR contract[desks]: 70.0 &lt;?= evaluation error
+CONSTR contract[chairs]: 120.0 &lt;?= evaluation error
+CONSTR contract[tables]: 60.0 &lt;?= evaluation error
+CONSTR market[desks]: evaluation error &lt;?= 100.0
+CONSTR market[chairs]: evaluation error &lt;?= 300.0
+CONSTR market[tables]: evaluation error &lt;?= 120.0
+CONSTR storage: evaluation error &lt;?= 400.0
+</code></pre>
+<p>It lists every constraint, and none of them has a value. The function checks the variable values the model holds
+against each constraint. After an infeasible solve there are no values (the solver has no plan to return), so it
+can't evaluate anything. It's useful when a solve returns a plan you think breaks a constraint, but it can't explain
+an infeasible model.</p>
+<h2 id="compute_infeasibility_explanation-works-with-gurobi-failed-with-highs"><code>compute_infeasibility_explanation</code>: works with Gurobi, failed with HiGHS</h2>
+<p><code>pyomo.contrib.iis.compute_infeasibility_explanation</code> finds a minimal infeasible set (an MIS, the same idea as an
+IIS) by relaxing constraints and solving many smaller models. With HiGHS through Pyomo it stopped with an error:</p>
+<pre><code class="language-python">import pyomo.environ as pyo
+from pyomo.contrib.iis import compute_infeasibility_explanation
+from furniture_week import m
+
+compute_infeasibility_explanation(m, solver=pyo.SolverFactory(&quot;appsi_highs&quot;))
+</code></pre>
+<pre><code class="language-text">RuntimeError: A feasible solution was not found, so no solution can be loaded. If using the appsi.solvers.Highs interface, you can set opt.config.load_solution=False. If using the environ.SolverFactory interface, you can set opt.solve(model, load_solutions = False). Then you can check results.termination_condition and results.best_feasible_objective before loading a solution.
+</code></pre>
+<p>The <code>highs</code> interface stopped with the same kind of error. With Gurobi it works:</p>
+<pre><code class="language-python">import logging
+import pyomo.environ as pyo
+from pyomo.contrib.iis import compute_infeasibility_explanation
+from furniture_week import m
+
+logging.basicConfig(level=logging.INFO, format=&quot;%(message)s&quot;)
+compute_infeasibility_explanation(m, solver=pyo.SolverFactory(&quot;gurobi_direct&quot;))
+</code></pre>
+<pre><code class="language-text">Model furniture_week may be infeasible. A feasible solution was found with only the following inequality constraints and/or variable bounds relaxed:
+    constraint: contract[desks] by 19.999999999999996
+Another feasible solution was found with only the following inequality constraints and/or variable bounds relaxed:
+    constraint: contract[tables] by 33.333333333333336
+Another feasible solution was found with only the following inequality constraints and/or variable bounds relaxed:
+    constraint: capacity[north] by 100.00000000000001
+Another feasible solution was found with only the following inequality constraints and/or variable bounds relaxed:
+    constraint: capacity[south] by 30.0
+    constraint: contract[chairs] by 70.0
+Computed Minimal Intractable System (MIS)!
+Constraints / bounds in MIS:
+    constraint: contract[desks]
+    constraint: contract[tables]
+    constraint: capacity[north]
+    constraint: capacity[south]
+    constraint: contract[chairs]
+Constraints / bounds in guards for stability:
+</code></pre>
+<p>The five constraints at the end are the conflict: the two plants' hours and the three contracts. The lines above
+them are relaxations it tried along the way.</p>
+<p><code>pyomo.contrib.iis.write_iis</code> calls the solver's own IIS routine instead, and it supports only commercial solvers
+(Gurobi, CPLEX, Xpress).</p>
+<h2 id="with-highs-optlens">With HiGHS: optlens</h2>
+<p><a href="../../">optlens</a> is an open-source library that finds the IIS on HiGHS (free, the default), SCIP or your own
+Gurobi. It reads the Pyomo model directly:</p>
+<pre><code class="language-python">import optlens as od
+from optlens.session import Session, Version
+from furniture_week import m
+
+if __name__ == &quot;__main__&quot;:
+    s = Session({&quot;v0&quot;: Version(od.from_object(m), None, &quot;this week's plan&quot;)})
+    print(s.compute_iis())
+</code></pre>
+<pre><code class="language-text">IIS (highs:irreducible): 5 constraints; by family: contract: 3, capacity: 2
+capacity[north]: 1 make[chairs,north] +3 make[tables,north] +5 make[desks,north] &lt;= 400
+capacity[south]: 1 make[chairs,south] +3 make[tables,south] +5 make[desks,south] &lt;= 150
+contract[chairs]: 1 make[chairs,north] +1 make[chairs,south] &gt;= 120
+contract[tables]: 1 make[tables,north] +1 make[tables,south] &gt;= 60
+contract[desks]: 1 make[desks,north] +1 make[desks,south] &gt;= 70
+variable bounds in the IIS:
+  make[chairs,north]: [0, inf]
+  make[chairs,south]: [0, inf]
+  make[tables,north]: [0, inf]
+  make[tables,south]: [0, inf]
+  make[desks,north]: [0, inf]
+  make[desks,south]: [0, 0]
+</code></pre>
+<p>The same five constraints, grouped by family: 3 contracts and 2 capacities. The market and warehouse limits aren't
+in it, so the problem isn't there. <code>od.load("furniture_week.py")</code> works as well: it runs the script up to its first
+solve call and reads that model.</p>
+<h2 id="from-the-conflict-to-a-fix">From the conflict to a fix</h2>
+<p>The IIS says the contracts ask for more than the capacity gives. The next question is what to change, and by how
+much. optlens's <code>fix_menu</code> gives the smallest change in each family and solves the model with it: here, 20 fewer
+desks, or 100 more hours in the south plant.
+<a href="../infeasible-model/#step-3-find-the-smallest-fix">The general guide</a> walks through it.</p>
+<p><em>Run with optlens 0.0.2, Pyomo 6.10.1, HiGHS (highspy) 1.15.1 and gurobipy 13.0.3.</em></p><p><a href="../../">&larr; Back to optlens</a></p></article>
+<footer class="bottom"><div class="wrap">
+  <span>optlens is open source (Apache-2.0)</span><a href="https://github.com/jjd-lab/optlens">GitHub</a><a href="mailto:hello@optlens.dev">hello@optlens.dev</a>
+  <a href="../../guides/infeasible-model/">Why a model is infeasible</a><a href="../../guides/pyomo-infeasible/">Pyomo infeasible model</a>
+</div></footer>
+</body>
+</html>

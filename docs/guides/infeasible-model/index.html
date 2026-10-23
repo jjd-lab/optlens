@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Why is my LP or MILP model infeasible? Finding the conflicting constraints | optlens</title>
+<meta name="description" content="Find the constraints behind an infeasible LP or MILP model with an IIS in HiGHS or Gurobi, read them as a business conflict, and find the smallest fix. Worked example with code.">
+<link rel="canonical" href="https://optlens.dev/guides/infeasible-model/">
+<meta property="og:title" content="Why is my LP or MILP model infeasible? Finding the conflicting constraints | optlens">
+<meta property="og:description" content="Find the constraints behind an infeasible LP or MILP model with an IIS in HiGHS or Gurobi, read them as a business conflict, and find the smallest fix. Worked example with code.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://optlens.dev/guides/infeasible-model/">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../style.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="../../">opt<span>lens</span></a>
+  <nav><a href="../../">Home</a><a href="../../ask/">What you can ask</a><a href="../../examples/">Examples</a><a href="../../benchmark/">Benchmark</a><a class="hide-sm" href="https://github.com/jjd-lab/optlens">GitHub</a></nav>
+</div></header>
+<article class="post"><h1 id="why-is-my-lp-or-milp-model-infeasible-how-to-find-the-conflicting-constraints">Why is my LP or MILP model infeasible? How to find the conflicting constraints</h1>
+<p>Your solver says "infeasible": no plan satisfies every constraint at once. It doesn't say which constraints are to
+blame, and in a model with thousands of rows, reading them won't tell you either. This guide shows the standard
+method on a small model, with HiGHS and Gurobi, then the step most guides skip: turning the answer into a fix.</p>
+<h2 id="the-model">The model</h2>
+<p>A furniture maker plans one week. Two plants make chairs, tables and desks, and the contracts promise 120 chairs,
+60 tables and 70 desks. The south plant is down for maintenance this week, so it has 150 hours instead of 300.</p>
+<pre><code class="language-python">&quot;&quot;&quot;A week's furniture production plan, infeasible: the south plant is down for maintenance (150 hours instead of 300),
+and the contracts still need 650 hours. The model behind the guides on optlens.dev.&quot;&quot;&quot;
+import pyomo.environ as pyo
+
+PRODUCTS = {&quot;chairs&quot;: 1, &quot;tables&quot;: 3, &quot;desks&quot;: 5}         # hours per unit
+PROFIT = {&quot;chairs&quot;: 20, &quot;tables&quot;: 70, &quot;desks&quot;: 130}
+CONTRACT = {&quot;chairs&quot;: 120, &quot;tables&quot;: 60, &quot;desks&quot;: 70}     # units promised to customers this week
+MARKET = {&quot;chairs&quot;: 300, &quot;tables&quot;: 120, &quot;desks&quot;: 100}     # most the market takes
+HOURS = {&quot;north&quot;: 400, &quot;south&quot;: 150}                      # south: maintenance week
+STORAGE = 400                                             # units the warehouse holds
+
+m = pyo.ConcreteModel(&quot;furniture_week&quot;)
+m.make = pyo.Var(PRODUCTS, HOURS, domain=pyo.NonNegativeReals)
+m.make[&quot;desks&quot;, &quot;south&quot;].setub(0)                         # desks are made only in the north
+m.profit = pyo.Objective(expr=sum(PROFIT[p] * m.make[p, k] for p in PRODUCTS for k in HOURS), sense=pyo.maximize)
+m.capacity = pyo.Constraint(HOURS, rule=lambda m, k: sum(PRODUCTS[p] * m.make[p, k] for p in PRODUCTS) &lt;= HOURS[k])
+m.contract = pyo.Constraint(PRODUCTS, rule=lambda m, p: sum(m.make[p, k] for k in HOURS) &gt;= CONTRACT[p])
+m.market = pyo.Constraint(PRODUCTS, rule=lambda m, p: sum(m.make[p, k] for k in HOURS) &lt;= MARKET[p])
+m.storage = pyo.Constraint(expr=sum(m.make[p, k] for p in PRODUCTS for k in HOURS) &lt;= STORAGE)
+</code></pre>
+<p>The solver says infeasible. The cause is simple arithmetic: the contracts need 120 × 1 + 60 × 3 + 70 × 5 = 650 hours,
+and the two plants have 400 + 150 = 550. In a real model you can't see that by reading. You find it with an IIS.</p>
+<h2 id="step-1-find-the-iis">Step 1: find the IIS</h2>
+<p>An <strong>IIS</strong> (irreducible infeasible subsystem) is a set of constraints that can't hold together, and is minimal: drop
+any one and the rest can be satisfied. It's the part of the model you need to read. Everything outside it is
+innocent.</p>
+<p>Write the model as an LP file so that any solver can read it:</p>
+<pre><code class="language-python">from furniture_week import m
+
+m.write(&quot;furniture_week.lp&quot;, io_options={&quot;symbolic_solver_labels&quot;: True})
+</code></pre>
+<h3 id="with-highs">With HiGHS</h3>
+<p>HiGHS (free, open source) computes an IIS with <code>getIis</code>. Its default strategy can return an empty IIS, so ask for an
+irreducible one:</p>
+<pre><code class="language-python">import highspy
+
+h = highspy.Highs()
+h.setOptionValue(&quot;output_flag&quot;, False)
+h.readModel(&quot;furniture_week.lp&quot;)
+# the default IIS strategy can return an empty IIS; ask for an irreducible one
+h.setOptionValue(&quot;iis_strategy&quot;, int(highspy.IisStrategy.kIisStrategyIrreducible))
+h.run()
+status, iis = h.getIis()
+lp = h.getLp()
+for i in iis.row_index_:
+    print(lp.row_names_[i])
+</code></pre>
+<pre><code class="language-text">c_u_capacity(north)_
+c_u_capacity(south)_
+c_l_contract(chairs)_
+c_l_contract(desks)_
+c_l_contract(tables)_
+</code></pre>
+<h3 id="with-gurobi">With Gurobi</h3>
+<pre><code class="language-python">import gurobipy as gp
+
+with gp.Env(empty=True) as env:
+    env.setParam(&quot;OutputFlag&quot;, 0)
+    env.start()
+    m = gp.read(&quot;furniture_week.lp&quot;, env)
+    m.optimize()
+    m.computeIIS()
+    for c in m.getConstrs():
+        if c.IISConstr:
+            print(c.ConstrName, c.Sense, c.RHS)
+</code></pre>
+<pre><code class="language-text">c_u_capacity(north)_ &lt; 400.0
+c_u_capacity(south)_ &lt; 150.0
+c_l_contract(chairs)_ &gt; 120.0
+c_l_contract(desks)_ &gt; 70.0
+c_l_contract(tables)_ &gt; 60.0
+</code></pre>
+<p>Both find the same five constraints: the two plants' hours and the three contracts. The market limits and the
+warehouse limit aren't in the IIS, so the problem isn't there.</p>
+<h2 id="step-2-read-the-iis-as-a-business-conflict">Step 2: read the IIS as a business conflict</h2>
+<p>An IIS is a list of rows, not an explanation. Group it by what the constraints mean: here, the <em>contracts</em> ask for
+more than the <em>capacity</em> gives. The explanation for a planner is one sentence: "the contracts need 650 hours this
+week, and with the south plant in maintenance we have 550."</p>
+<p>An IIS shows only one conflict. A model can have several. Fix this one, solve again, and check for the next.</p>
+<h2 id="step-3-find-the-smallest-fix">Step 3: find the smallest fix</h2>
+<p>An IIS tells you what conflicts, not what to change. To find the least you have to change, solve a <strong>feasibility
+relaxation</strong>: let every constraint be broken, at a cost, and minimize the total amount broken. In Gurobi:</p>
+<pre><code class="language-python">import gurobipy as gp
+
+with gp.Env(empty=True) as env:
+    env.setParam(&quot;OutputFlag&quot;, 0)
+    env.start()
+    m = gp.read(&quot;furniture_week.lp&quot;, env)
+    m.feasRelaxS(0, False, False, True)  # least total violation, constraints only
+    m.optimize()
+    for v in m.getVars():
+        if v.VarName.startswith(&quot;Art&quot;) and v.X &gt; 1e-6:
+            print(v.VarName, round(v.X, 6))
+</code></pre>
+<pre><code class="language-text">ArtP_c_l_contract(desks)_ 20.0
+</code></pre>
+<p>The cheapest fix is 20 fewer desks. That's the 100 missing hours at 5 hours a desk. But "cheapest" here depends on
+units: the relaxation compares hours of capacity with units of product as if they cost the same. Adding 100 hours to
+the south plant is a different fix, and it might be the one the business picks. Try each kind of fix, not just the
+first one the solver returns.</p>
+<h2 id="the-same-in-one-step-with-optlens">The same in one step with optlens</h2>
+<p><a href="../../">optlens</a> is an open-source Python library that runs these steps on HiGHS (or SCIP, or your own Gurobi). It
+reads LP and MPS files and Pyomo, gurobipy and PuLP models. <code>compute_iis</code> groups the IIS by constraint family.
+<code>fix_menu</code> gives the smallest change in each family and solves the model with that change:</p>
+<pre><code class="language-python">import optlens as od
+from optlens.session import Session, Version
+
+if __name__ == &quot;__main__&quot;:  # optlens solves in worker processes
+    md = od.load(&quot;furniture_week.py&quot;)
+    s = Session({&quot;v0&quot;: Version(md, None, &quot;this week's plan&quot;)})
+    print(s.compute_iis())
+    print(s.fix_menu())
+</code></pre>
+<pre><code class="language-text">IIS (highs:irreducible): 5 constraints; by family: contract: 3, capacity: 2
+capacity[north]: 1 make[chairs,north] +3 make[tables,north] +5 make[desks,north] &lt;= 400
+capacity[south]: 1 make[chairs,south] +3 make[tables,south] +5 make[desks,south] &lt;= 150
+contract[desks]: 1 make[desks,north] +1 make[desks,south] &gt;= 70
+contract[tables]: 1 make[tables,north] +1 make[tables,south] &gt;= 60
+contract[chairs]: 1 make[chairs,north] +1 make[chairs,south] &gt;= 120
+variable bounds in the IIS:
+  make[chairs,north]: [0, inf]
+  make[chairs,south]: [0, inf]
+  make[tables,north]: [0, inf]
+  make[tables,south]: [0, inf]
+  make[desks,north]: [0, inf]
+  make[desks,south]: [0, 0]
+contract: sufficient; total change 20 over 1 bounds; best plan with it: objective 13100
+    contract[desks]: RHS lower bound (&gt;= side) 70 -&gt; 50 (minimal change 20)
+capacity: sufficient; total change 100 over 1 bounds; best plan with it: objective 15700
+    capacity[south]: RHS upper bound (&lt;= side) 150 -&gt; 250 (minimal change 100)
+(all families together: unrestricted minimum): sufficient; total change 20 over 1 bounds; best plan with it: objective 13100
+    contract[desks]: RHS lower bound (&gt;= side) 70 -&gt; 50 (minimal change 20)
+suggested values are the exact minimum; copy them exactly as printed (a rounded boundary value can land on the infeasible side)
+</code></pre>
+<p>Two fixes, each solved: cut the desk contract from 70 to 50 (profit 13,100), or give the south plant 250 hours
+(profit 15,700). Which one is right is a business decision, but now both have a number.</p>
+<h2 id="common-causes">Common causes</h2>
+<ul>
+<li><strong>A typo in the data:</strong> 700 for 70, or a value in the wrong unit. optlens's <code>suspicious_values</code> flags values that
+  break their group's pattern, and solves the model with each flagged value put back.</li>
+<li><strong>A constraint with the wrong sign:</strong> <code>&gt;=</code> where <code>&lt;=</code> was meant.</li>
+<li><strong>Bounds that cross:</strong> a lower bound above the upper bound, often from two data sources that disagree.</li>
+<li><strong>A hard rule that should be soft:</strong> for example, a demand that must be met in full when a shortfall with a penalty
+  was meant.</li>
+</ul>
+<p><em>Run with optlens 0.0.2, Pyomo 6.10.1, HiGHS (highspy) 1.15.1 and gurobipy 13.0.3.</em></p><p><a href="../../">&larr; Back to optlens</a></p></article>
+<footer class="bottom"><div class="wrap">
+  <span>optlens is open source (Apache-2.0)</span><a href="https://github.com/jjd-lab/optlens">GitHub</a><a href="mailto:hello@optlens.dev">hello@optlens.dev</a>
+  <a href="../../guides/infeasible-model/">Why a model is infeasible</a><a href="../../guides/pyomo-infeasible/">Pyomo infeasible model</a>
+</div></footer>
+</body>
+</html>
