@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "optlens"
-version = "0.0.3"
+version = "0.0.4"
 description = "Debug and explain LP/MILP models: why infeasible, the smallest fix, what-if and sensitivity. Solver-agnostic."
 requires-python = ">=3.12"
 license = "Apache-2.0"

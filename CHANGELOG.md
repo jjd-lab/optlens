@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.0.4 (2026-10-24)
+- New tool `optimality_proof` (24 tools), for when the user asks whether a better plan exists or for proof that this
+  one is the best: the solver's checked receipt that no plan beats the objective, each binding constraint family shown
+  as its share of what holds the plan where it is, and the sum named as the solver's check. For a MIP it comes from the
+  LP relaxation, so it bounds every plan, whole or fractional: exact when it equals the plan's objective (7 of the
+  benchmark's 20 business MILPs), else it says how far the bound lies from the plan. In Python:
+  `od.optimality_certificate`. On eight "could we do better?" questions the answers stay in business terms (24/24
+  without the tool, 23/24 with it, three runs each) at half the cost: the agent reads the bound instead of probing
+  with re-solves.
+- `suspicious_values` flags a variable or row whose lower limit exceeds its upper one, and a limit that is the only
+  negative one in a group of at least 5 whose others are >= 0 (or the only positive among <= 0), with the others'
+  median as the value the checked fix puts back. On the benchmark's cases: 4 more injected errors flagged, none lost.
+
 ## 0.0.3 (2026-10-24)
 - New tool `infeasibility_proof` (23 tools), for when the user asks for proof or for the numbers behind a conflict:
   the solver's checked proof that no plan exists, as what the conflicting families require against what they allow,
