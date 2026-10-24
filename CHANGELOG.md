@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.0.3 (2026-10-24)
+- New tool `infeasibility_proof` (23 tools), for when the user asks for proof or for the numbers behind a conflict:
+  the solver's checked proof that no plan exists, as what the conflicting families require against what they allow,
+  each row with its weight. Exact for an LP and for a MIP whose conflict holds without integrality (237 of the
+  benchmark's 246 infeasible cases); it says so when the conflict needs whole numbers, and a crossed bound is its own
+  proof. Computed by HiGHS, so a session on a licensed solver gets a note instead. In Python: `od.certificate`.
+  It is a separate tool on purpose: shown inside `compute_iis`, it led answers to give the solver's sum instead of the
+  business cause.
+- `fix_menu` and `feasibility_relaxation` show the minimal change without solver noise: residues below the solvers'
+  tolerance are dropped, and the best-plan split is scaled to the proven minimum whichever side it lands on (it printed
+  `70 -> 50.0000000525` beside a phantom 5e-8 change on another row; an undershoot could print a fix on the
+  infeasible side).
+- `suspicious_values` flags a nonzero limit whose two siblings are 0, and in an infeasible model the odd sense in a
+  family of 2-3 rows that mixes `<=` and `>=` (rows in the conflict only; the solved flip back says which one it is).
+  On the benchmark's cases: 14 more injected errors flagged, none lost.
+- Plugin: an icon, a display name for directory listings, and a README that says where it works (Claude Code fully;
+  Cowork on the user's computer), that optlens makes no network calls, and what the eval measured; the eval suite has
+  a twelfth question.
+
 ## 0.0.2 (2026-10-08)
 - Solves work inside a sandbox that forbids Unix sockets (Claude Code's Bash sandbox): the solver workers start with
   spawn when the forkserver cannot start, as on Windows.
