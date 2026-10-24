@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Why is my MILP infeasible? A proof you can check, on a hotel week | optlens</title>
+<meta name="description" content="The IIS says which rules clash; the solver&#x27;s proof says why, as a sum anyone can check. Worked on a 2,691-row hotel MILP where the limit is housekeeping on the days after the night in question.">
+<link rel="canonical" href="https://optlens.dev/guides/milp-proof/">
+<meta property="og:title" content="Why is my MILP infeasible? A proof you can check, on a hotel week | optlens">
+<meta property="og:description" content="The IIS says which rules clash; the solver&#x27;s proof says why, as a sum anyone can check. Worked on a 2,691-row hotel MILP where the limit is housekeeping on the days after the night in question.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://optlens.dev/guides/milp-proof/">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../style.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="../../">opt<span>lens</span></a>
+  <nav><a href="../../">Home</a><a href="../../ask/">What you can ask</a><a href="../../examples/">Examples</a><a href="../../benchmark/">Benchmark</a><a class="hide-sm" href="https://github.com/jjd-lab/optlens">GitHub</a></nav>
+</div></header>
+<article class="post"><h1 id="why-is-my-milp-infeasible-a-proof-you-can-check-on-a-hotel-week">Why is my MILP infeasible? A proof you can check, on a hotel week</h1>
+<p>When a solver reports an infeasible model, an IIS lists the constraints that conflict. It does not say why they
+conflict, and on a large model the reason can involve rules far from the one you were looking at. The solver has
+already computed that reason: weights for the conflicting rows that, added up, give a contradiction. This guide shows
+that proof on a hotel planning MILP.</p>
+<h2 id="the-model">The model</h2>
+<p>The hotel week from the <a href="https://github.com/jjd-lab/optlens/tree/main/packs/hotel/examples/try_week">optlens hotel pack</a>:
+one hotel, 14 nights, 2,691 rows and 2,520 integer variables (bookings by room type, stay length, booking window and
+rate tier). Its document lists the business rules: room capacity, forecast demand, discount caps, a brand-standard
+occupancy floor, a group-wide occupancy floor, and a housekeeping team that turns over at most 110 rooms a day. One
+number was typed wrong during a data load, and the model is infeasible.</p>
+<h2 id="the-proof">The proof</h2>
+<pre><code class="language-python">import optlens as od
+from optlens.session import Session, Version
+
+if __name__ == &quot;__main__&quot;:  # optlens solves in worker processes
+    s = Session({&quot;v0&quot;: Version(od.load(&quot;hotel_week.lp.gz&quot;), None, &quot;the week as loaded&quot;)})
+    print(s.compute_iis().splitlines()[1])  # the IIS's size and families
+    print(s.infeasibility_proof())
+</code></pre>
+<pre><code class="language-text">IIS (lp_relaxation:highs:irreducible): 4 constraints; by family: housekeeping: 3, group_occupancy: 1
+no plan meets these 4 rows at once (the IIS; exact for this MIP: the conflict holds even with fractional values):
+  require at least 1200:
+    group_occupancy (1 row): 1200   [group_occupancy(d5) &gt;= 1200]
+  allow at most 330:
+    housekeeping (3 rows): 330   [housekeeping(h1_d6) &lt;= 110; housekeeping(h1_d7) &lt;= 110; housekeeping(h1_d8) &lt;= 110]
+short by 870: each row is weighted as shown (weights make the rows' left-hand sides add up to the same quantity), and the sums are checked by arithmetic
+</code></pre>
+<figure class="chart"><svg viewBox="0 0 720 148" role="img" aria-label="Required against allowed"><text class="cat" x="140" y="40.0" text-anchor="end">required</text><rect class="bar" x="150.0" y="18" width="500.0" height="34" rx="4" fill="var(--series-2)"><title>group_occupancy: 1 row, 1,200</title></rect><text class="val" x="160.0" y="40.0" style="fill:#fff">group_occupancy (1)</text><text class="val" x="658.0" y="40.0">1,200</text><text class="cat" x="140" y="120.0" text-anchor="end">allowed</text><rect class="bar" x="150.0" y="98" width="137.5" height="34" rx="4" fill="var(--series-1)"><title>housekeeping: 3 rows, 330</title></rect><text class="val" x="295.5" y="120.0">330  housekeeping (3)</text></svg><figcaption>The proof to scale: the families on each side and their totals. Short by 870.</figcaption></figure>
+
+<p>The IIS has four rows: the group occupancy floor for night 5, and the housekeeping limits for the mornings of nights 6,
+7 and 8. Every weight is 1. The floor requires at least 1,200 rooms in house on night 5. The three housekeeping limits
+allow at most 3 × 110 = 330.</p>
+<p>This output comes from the solver and optlens alone, with no language model involved. HiGHS finds the IIS and the
+weights; optlens adds the weighted rows to check the contradiction, groups the rows by name and prints the result. The
+same model always gives the same output, and you can redo the sum by hand. The next section is different: it explains
+the rows in the hotel's terms, which takes the model's document and some judgement. In the optlens plugin, the agent
+writes that part; here we wrote it and checked it against the document.</p>
+<h2 id="in-the-hotels-terms">In the hotel's terms</h2>
+<p>Stays last at most three nights, so every guest in house on night 5 checks out on the morning of night 6, 7 or 8.
+Each check-out is a room housekeeping has to turn over, and housekeeping can turn over at most 110 rooms a morning.
+That allows at most 330 check-outs over those three mornings, so at most 330 rooms can be occupied on night 5. A floor
+of 1,200 cannot be met.</p>
+<p>The IIS names the four rows but not this chain of reasoning; the weighted sum makes it visible. The document sets the
+group floor at 60 % of the group's 200 rooms, which is 120. The value 1,200 has an extra zero. With 120 restored, the
+week solves:</p>
+<pre><code class="language-python">import optlens as od
+from optlens.session import Session, Version
+
+if __name__ == &quot;__main__&quot;:
+    s = Session({&quot;v0&quot;: Version(od.load(&quot;hotel_week.lp.gz&quot;), None, &quot;the week as loaded&quot;)})
+    print(s.modify_and_resolve(&quot;v0&quot;, &quot;night 5's group floor back to 120&quot;,
+                               [{&quot;action&quot;: &quot;set_rhs&quot;, &quot;name&quot;: &quot;group_occupancy(d5)&quot;, &quot;lower&quot;: 120}]).splitlines()[0])
+</code></pre>
+<pre><code class="language-text">created v1 from v0 (1 changes): status OPTIMAL
+</code></pre>
+<h2 id="when-this-works-for-a-milp">When this works for a MILP</h2>
+<p>The proof is a weighted sum of rows, so it is a statement about the LP relaxation: the same model with integer
+variables allowed to take fractional values. In this week the conflict exists even with fractional values, because no
+plan of any kind reaches 1,200. The proof therefore holds for the MILP as well, and the output says so. Of the 246
+infeasible models in our benchmark, 237 have a proof of this kind, including every MILP whose relaxation is infeasible.
+The other 9 are MILPs that are infeasible only because the variables must be whole numbers, for example a team size of
+3 that cannot divide 4 people. No single weighted sum proves those; the tool reports that, and the IIS remains the
+place to look.</p>
+<h2 id="try-it">Try it</h2>
+<p>The week and five planner questions are in the
+<a href="https://github.com/jjd-lab/optlens/tree/main/packs/hotel/examples/try_week">optlens repository</a>. With the
+<a href="../../">Claude Code plugin</a>, ask why the week is infeasible, then ask for proof: the agent calls <code>infeasibility_proof</code>
+when you ask for proof or for the numbers, and explains the sum in the hotel's terms. In Python,
+<code>od.certificate(model)</code> returns the proof, checked by arithmetic.</p>
+<p><em>Run with optlens 0.0.3, Pyomo 6.10.1, HiGHS (highspy) 1.15.1 and gurobipy 13.0.3.</em></p><p><a href="../../">&larr; Back to optlens</a></p></article>
+<footer class="bottom"><div class="wrap">
+  <span>optlens is open source (Apache-2.0)</span><a href="https://github.com/jjd-lab/optlens">GitHub</a><a href="mailto:hello@optlens.dev">hello@optlens.dev</a>
+  <a href="../../guides/infeasible-model/">Why a model is infeasible</a><a href="../../guides/pyomo-infeasible/">Pyomo infeasible model</a><a href="../../guides/milp-proof/">A proof of infeasibility (MILP)</a>
+</div></footer>
+</body>
+</html>

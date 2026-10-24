@@ -60,8 +60,8 @@ logging.getLogger(&quot;pyomo.util.infeasible&quot;).setLevel(logging.INFO)
 pyo.SolverFactory(&quot;appsi_highs&quot;).solve(m, load_solutions=False)
 log_infeasible_constraints(m)
 </code></pre>
-<pre><code class="language-text">CONSTR capacity[south]: evaluation error &lt;?= 150.0
-CONSTR capacity[north]: evaluation error &lt;?= 400.0
+<pre><code class="language-text">CONSTR capacity[north]: evaluation error &lt;?= 400.0
+CONSTR capacity[south]: evaluation error &lt;?= 150.0
 CONSTR contract[desks]: 70.0 &lt;?= evaluation error
 CONSTR contract[chairs]: 120.0 &lt;?= evaluation error
 CONSTR contract[tables]: 60.0 &lt;?= evaluation error
@@ -129,11 +129,11 @@ if __name__ == &quot;__main__&quot;:
     print(s.compute_iis())
 </code></pre>
 <pre><code class="language-text">IIS (highs:irreducible): 5 constraints; by family: contract: 3, capacity: 2
-capacity[north]: 1 make[chairs,north] +3 make[tables,north] +5 make[desks,north] &lt;= 400
 capacity[south]: 1 make[chairs,south] +3 make[tables,south] +5 make[desks,south] &lt;= 150
+capacity[north]: 1 make[chairs,north] +3 make[tables,north] +5 make[desks,north] &lt;= 400
 contract[chairs]: 1 make[chairs,north] +1 make[chairs,south] &gt;= 120
-contract[tables]: 1 make[tables,north] +1 make[tables,south] &gt;= 60
 contract[desks]: 1 make[desks,north] +1 make[desks,south] &gt;= 70
+contract[tables]: 1 make[tables,north] +1 make[tables,south] &gt;= 60
 variable bounds in the IIS:
   make[chairs,north]: [0, inf]
   make[chairs,south]: [0, inf]
@@ -150,10 +150,10 @@ solve call and reads that model.</p>
 much. optlens's <code>fix_menu</code> gives the smallest change in each family and solves the model with it: here, 20 fewer
 desks, or 100 more hours in the south plant.
 <a href="../infeasible-model/#step-3-find-the-smallest-fix">The general guide</a> walks through it.</p>
-<p><em>Run with optlens 0.0.2, Pyomo 6.10.1, HiGHS (highspy) 1.15.1 and gurobipy 13.0.3.</em></p><p><a href="../../">&larr; Back to optlens</a></p></article>
+<p><em>Run with optlens 0.0.3, Pyomo 6.10.1, HiGHS (highspy) 1.15.1 and gurobipy 13.0.3.</em></p><p><a href="../../">&larr; Back to optlens</a></p></article>
 <footer class="bottom"><div class="wrap">
   <span>optlens is open source (Apache-2.0)</span><a href="https://github.com/jjd-lab/optlens">GitHub</a><a href="mailto:hello@optlens.dev">hello@optlens.dev</a>
-  <a href="../../guides/infeasible-model/">Why a model is infeasible</a><a href="../../guides/pyomo-infeasible/">Pyomo infeasible model</a>
+  <a href="../../guides/infeasible-model/">Why a model is infeasible</a><a href="../../guides/pyomo-infeasible/">Pyomo infeasible model</a><a href="../../guides/milp-proof/">A proof of infeasibility (MILP)</a>
 </div></footer>
 </body>
 </html>
