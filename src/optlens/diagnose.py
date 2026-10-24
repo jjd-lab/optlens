@@ -347,7 +347,8 @@ class Certificate:
     allow at most ``have`` of it, and the variable bounds force ``forced`` more of it (0 when every variable sits at
     a lower bound of 0). ``need + forced > have`` is the contradiction, checked by arithmetic. Each family maps to
     (rows, weighted total); weights are scaled so the most common one is 1, so the totals share the rows' unit
-    where the rows themselves do. ``bounds`` lists the variable families whose bounds the proof uses."""
+    where the rows themselves do. ``bounds`` lists the variable families whose bounds the proof uses; ``terms`` holds
+    each row as (name, weight, the bound it is held to, True when it is on the required side), weights positive."""
     required: dict[str, tuple[int, float]]
     limits: dict[str, tuple[int, float]]
     need: float
@@ -355,15 +356,19 @@ class Certificate:
     forced: float
     bounds: list[str]
     rows: int
+    terms: list[tuple[str, float, float, bool]]
 
 
-def certificate(md: ModelData, time_limit: float = 60.0) -> Certificate | None:
+def certificate(md: ModelData, time_limit: float = 60.0, rows: list[str] | None = None) -> Certificate | None:
     """HiGHS's infeasibility proof for the LP relaxation of ``md`` (its dual ray), checked and grouped by constraint
     family. Exact for an LP and for a MIP whose relaxation is infeasible; None when the relaxation is feasible (the
     conflict needs integrality, so no single weighted sum proves it), when no ray is returned, or when the ray does
-    not check out in either sign."""
+    not check out in either sign. With ``rows`` (an IIS's rows, say) the proof uses only those rows: the whole
+    model's ray is valid but need not be small (452 rows on the ad MIP, whose IIS spans 6 families)."""
     from .backends import BACKENDS
 
+    if rows is not None:
+        md = md.keep_rows([md.row_index(r) for r in rows])
     lp = replace(md, is_int=np.zeros(md.num_cols, dtype=bool))
     ray = BACKENDS["highs"].dual_ray(lp, time_limit)
     if ray is None or not ray.any():
@@ -393,8 +398,9 @@ def certificate(md: ModelData, time_limit: float = 60.0) -> Certificate | None:
         need = float(-sum(y[i] * hi[i] for i in np.flatnonzero(y < 0)))
         have = float(sum(y[i] * hi[i] for i in np.flatnonzero(y > 0)))
         used = np.flatnonzero((d != 0) & (lo_end != 0))
+        terms = [(md.row_names[i], abs(float(y[i])), float(hi[i]), bool(y[i] < 0)) for i in np.flatnonzero(y)]
         return Certificate(required, limits, need, have, floor, sorted({base_name(md.col_names[j]) for j in used}),
-                           int(np.count_nonzero(y)))
+                           int(np.count_nonzero(y)), terms)
     return None
 
 

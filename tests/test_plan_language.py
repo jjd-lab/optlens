@@ -107,6 +107,19 @@ class PlanLanguage(unittest.TestCase):
         self.assertAlmostEqual(c.have, 550)
         self.assertAlmostEqual(c.forced, 0)
 
+    def test_the_proof_text_weights_each_row(self):
+        out = Session({"v0": Version(furniture(), None, "week")}).infeasibility_proof()
+        self.assertIn("require at least 650:", out)
+        self.assertIn("5 x contract[desks] >= 70", out)
+        self.assertIn("capacity (2 rows): 550", out)
+        self.assertIn("short by 100", out)
+
+    def test_a_crossed_bound_is_its_own_proof(self):
+        md = furniture()
+        md = md.set_col_bounds("make[chairs,north]", lb=5.0, ub=2.0)
+        out = Session({"v0": Version(md, None, "week")}).infeasibility_proof()
+        self.assertEqual(out, "no plan exists: make[chairs,north] must be >= 5 and <= 2")
+
     def test_no_proof_when_only_integrality_conflicts(self):
         # 2x = 1 with x whole: the relaxation solves (x = 0.5), so no weighted sum of rows proves it infeasible
         md = od.ModelData(name="m", minimize=True, obj=np.ones(1), obj_offset=0.0, A=sp.csr_matrix(np.array([[2.0]])),
