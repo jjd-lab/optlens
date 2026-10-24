@@ -139,6 +139,16 @@ class PlanLanguage(unittest.TestCase):
         total = sum(t for _, t in c.rows.values()) + sum(t for _, t in c.bounds.values()) + c.offset
         self.assertAlmostEqual(total, 15700)
 
+    def test_the_optimality_proof_is_a_tool_on_request(self):
+        md = furniture().set_row_bounds("capacity[south]", hi=250.0)
+        out, err = Session({"v0": Version(md, None, "week")}).call("optimality_proof", {})
+        self.assertFalse(err)
+        self.assertIn("no plan earns more than 15,700, and this plan reaches it", out)
+        self.assertIn("capacity (2 rows): 16,900", out)
+        self.assertIn("optimality_proof", [t["name"] for t in TOOLS])
+        out, _ = Session({"v0": Version(furniture(), None, "week")}).call("optimality_proof", {})
+        self.assertIn("not solved to optimality", out)  # 150 south hours: infeasible
+
     def test_a_milps_receipt_comes_from_its_relaxation(self):
         def one(limit):  # max x, x whole in [0, 10], 2x <= limit
             return od.ModelData(name="m", minimize=False, obj=np.ones(1), obj_offset=0.0,

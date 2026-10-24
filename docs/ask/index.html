@@ -20,7 +20,7 @@
   <nav><a href="../">Home</a><a href="../ask/">What you can ask</a><a href="../examples/">Examples</a><a href="../benchmark/">Benchmark</a><a class="hide-sm" href="https://github.com/jjd-lab/optlens">GitHub</a></nav>
 </div></header>
 <article class="post"><h1 id="what-you-can-ask">What you can ask</h1>
-<p>Each question below maps to a tool. In Python the tool is a <code>Session</code> method. The MCP server (<code>optlens-mcp</code>, 23
+<p>Each question below maps to a tool. In Python the tool is a <code>Session</code> method. The MCP server (<code>optlens-mcp</code>, 24
 tools) and the Claude Code plugin have the same tools. Ask in your own words, and the agent picks the tools.</p>
 <h2 id="questions-and-tools">Questions and tools</h2>
 <div class="table"><table>
@@ -61,6 +61,11 @@ tools) and the Claude Code plugin have the same tools. Ask in your own words, an
 <td>what a limit is worth, how far it can go</td>
 <td>"What is one more hour of capacity worth? How high can demand go?"</td>
 <td><code>marginal_value</code>, <code>sensitivity_report</code>, <code>attainable_limit</code></td>
+</tr>
+<tr>
+<td>whether a better plan exists</td>
+<td>"Could any plan do better? Prove this one is the best."</td>
+<td><code>optimality_proof</code> (on request: the checked bound and what holds the plan there)</td>
 </tr>
 <tr>
 <td>why the plan doesn't do X</td>

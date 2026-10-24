@@ -131,6 +131,11 @@ TOOLS = [
         "input_schema": {"type": "object", "properties": {"version": {"type": "string", "description": "Model version; default 'v0', the original."}, "time_limit": {"type": "number", "description": "Seconds for the IIS and the proof."}}},
     },
     {
+        "name": "optimality_proof",
+        "description": "Only when the user asks whether a better plan exists or for proof that this plan is the best: the solver's checked receipt that no plan beats the objective, as what each binding constraint family is worth times its limits, summed (a ceiling for a maximum, a floor for a minimum). For a MIP it comes from the LP relaxation, so it bounds every plan, whole or fractional: exact when it equals the plan's objective, else it says how far above (or below) the plan it lies. Explain it in the families' business meanings, not as the solver's sum.",
+        "input_schema": {"type": "object", "properties": {"version": {"type": "string", "description": "Model version; default 'v0', the original."}, "time_limit": {"type": "number", "description": "Seconds for the solves."}}},
+    },
+    {
         "name": "feasibility_relaxation",
         "description": "Minimal total change (sum of absolute RHS/bound changes) that makes an infeasible version feasible (one relaxation solve; slower than a plain solve on a large MIP). Returns one minimal fix: its changes, applied together, each with its current and suggested value; other minimal fixes of the same total may exist (fix_menu lists single-family fixes). Suggested values are exact: copy them as printed rather than rounding or recomputing them. only_families limits which constraint/variable families may change (others stay hard); relax_variable_bounds also allows variable bounds to move.",
         "input_schema": {"type": "object", "properties": {
@@ -992,6 +997,46 @@ class Session:
         lines = _proof_lines(c, f"no plan meets these {c.rows} rows at once ("
                              + ("the IIS" if names <= set(iis.rows) else "the whole model's proof; the IIS's rows alone gave none")
                              + ("; exact for this MIP: the conflict holds even with fractional values" if md.is_mip else "") + "):")
+        return "\n".join(lines)
+
+    def optimality_proof(self, version="v0", time_limit=None) -> str:
+        """Why no plan beats this one, as one checked sum: each binding family's limits times their worth, adding up to
+        a bound on every plan (od.optimality_certificate)."""
+        md = self.get(version).md
+        if self.solved(version).status != "OPTIMAL":
+            return f"version {version} is {self.solved(version).status}, not solved to optimality; no proof."
+        bk = self._bk(md, self.get(version).solver)
+        c = od.optimality_certificate(md, self._limit(time_limit, self.time_limit), backend=bk if bk.licensed else None)
+        if c is None:
+            return ("no checked sum: the objective is quadratic, or the prices did not check out; sensitivity_report "
+                    "and marginal_value give the binding limits and their worth")
+
+        def g(v: float) -> str:  # explanatory totals, not values to copy into a change: 6 significant digits
+            return f"{float(f'{v:.6g}'):,.10g}"
+
+        verb = "earns more than" if not md.minimize else "costs less than"
+        lines = [f"no plan {verb} {g(c.bound)}"
+                 + (f", and this plan reaches it: it is the best ({'the LP relaxation' if c.relaxation else 'the model'}'s "
+                    "prices, checked)" if c.exact else
+                    f"; this plan's objective is {g(c.plan)}, {c.gap:.2%} from that bound (the LP relaxation's prices, "
+                    "checked; the solver's search, not this sum, shows the plan is the best whole-number one)")]
+        if c.relaxation:
+            lines.append("(a MIP: the sum is the LP relaxation's, so it bounds every plan, with whole numbers or not)")
+        for label, side in (("binding constraint families (their limits times what a unit of each is worth)", c.rows),
+                            ("variables held at a bound (each bound times its reduced cost)", c.bounds)):
+            worth = {f: v for f, v in side.items() if abs(v[1]) > 1e-9}
+            linking = sorted(f for f, v in side.items() if abs(v[1]) <= 1e-9)
+            if worth or linking:
+                lines.append(f"  {label}:")
+            for f, (n, t) in sorted(worth.items(), key=lambda kv: -abs(kv[1][1])):
+                lines.append(f"    {f} ({n:,} {'row' if side is c.rows else 'variable'}{'s' if n > 1 else ''}): {g(t)}")
+            if linking and side is c.rows:
+                lines.append(f"    binding at a limit of 0, linking the families above: {', '.join(linking)}")
+            elif linking:  # a variable priced at a bound of 0: more of it would earn less than the limits it uses
+                lines.append(f"    held at 0, each unit worth less than the limits it would use: {', '.join(linking)}")
+        if abs(c.offset) > 1e-9:
+            lines.append(f"  the objective's constant: {g(c.offset)}")
+        lines.append(f"sum: {g(c.bound)}. Unlisted constraints have slack: changing them alone does not change the bound")
         return "\n".join(lines)
 
     def feasibility_relaxation(self, version="v0", only_families=None, relax_variable_bounds=False, solver=None,
