@@ -290,22 +290,25 @@ def _fmt(v) -> str:
 
 def _proof_lines(c, header: str) -> list[str]:
     """A checked infeasibility proof (od.certificate) as text: what the families require against what they allow,
-    each row with its weight (first three per family)."""
+    each row with its weight (first three per family). Totals and weights explain, they are not values to copy into a
+    fix, so they show 6 significant digits (E93: 284.820002848 for 284.82); the rows' own limits stay exact."""
+    def g(v: float) -> str:
+        return _fmt(float(f"{v:.6g}"))
+
     lines = [header]
     for label, side, total, sign, req in (("require at least", c.required, c.need, ">=", True),
                                           ("allow at most", c.limits, c.have, "<=", False)):
-        lines.append(f"  {label} {_fmt(round(total, 9))}:")
+        lines.append(f"  {label} {g(total)}:")
         for fam, (n, t) in sorted(side.items(), key=lambda kv: -abs(kv[1][1])):
             rows = [(r, w, b) for r, w, b, q in c.terms if base_name(r) == fam and q == req]
-            shown = "; ".join(f"{'' if abs(w - 1) < 1e-9 else _fmt(round(w, 6)) + ' x '}{r} {sign} {_fmt(b)}"
+            shown = "; ".join(f"{'' if abs(w - 1) < 1e-9 else g(w) + ' x '}{r} {sign} {_fmt(b)}"
                               for r, w, b in rows[:3]) + ("; ..." if len(rows) > 3 else "")
-            lines.append(f"    {fam} ({n} row{'s' if n > 1 else ''}): {_fmt(round(t, 9))}   [{shown}]")
+            lines.append(f"    {fam} ({n} row{'s' if n > 1 else ''}): {g(t)}   [{shown}]")
     if abs(c.forced) > 1e-9:
-        lines.append(f"  the variable bounds force {_fmt(round(c.forced, 9))} more ({', '.join(c.bounds)})")
-    lines.append(f"short by {_fmt(round(c.need + c.forced - c.have, 9))}: each row is weighted as shown (weights make "
+        lines.append(f"  the variable bounds force {g(c.forced)} more ({', '.join(c.bounds)})")
+    lines.append(f"short by {g(c.need + c.forced - c.have)}: each row is weighted as shown (weights make "
                  "the rows' left-hand sides add up to the same quantity), and the sums are checked by arithmetic")
     return lines
-
 
 
 def _proof(r: od.SolveResult) -> str:
