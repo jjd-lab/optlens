@@ -282,6 +282,25 @@ def _fmt(v) -> str:
         return f"{v + 0.0:.15g}"  # exact enough to type back in: .6g rounding put a relaxed bound on the infeasible side
     return str(v)
 
+def _proof_lines(c, header: str) -> list[str]:
+    """A checked infeasibility proof (od.certificate) as text: what the families require against what they allow,
+    each row with its weight (first three per family)."""
+    lines = [header]
+    for label, side, total, sign, req in (("require at least", c.required, c.need, ">=", True),
+                                          ("allow at most", c.limits, c.have, "<=", False)):
+        lines.append(f"  {label} {_fmt(round(total, 9))}:")
+        for fam, (n, t) in sorted(side.items(), key=lambda kv: -abs(kv[1][1])):
+            rows = [(r, w, b) for r, w, b, q in c.terms if base_name(r) == fam and q == req]
+            shown = "; ".join(f"{'' if abs(w - 1) < 1e-9 else _fmt(round(w, 6)) + ' x '}{r} {sign} {_fmt(b)}"
+                              for r, w, b in rows[:3]) + ("; ..." if len(rows) > 3 else "")
+            lines.append(f"    {fam} ({n} row{'s' if n > 1 else ''}): {_fmt(round(t, 9))}   [{shown}]")
+    if abs(c.forced) > 1e-9:
+        lines.append(f"  the variable bounds force {_fmt(round(c.forced, 9))} more ({', '.join(c.bounds)})")
+    lines.append(f"short by {_fmt(round(c.need + c.forced - c.have, 9))}: each row is weighted as shown (weights make "
+                 "the rows' left-hand sides add up to the same quantity), and the sums are checked by arithmetic")
+    return lines
+
+
 
 def _proof(r: od.SolveResult) -> str:
     """What a result does not prove: a plan the solver stopped on gives its bound and gap; a time limit without a plan
@@ -928,6 +947,14 @@ class Session:
         if iis.method.startswith("lp_relaxation") or ":lp_relaxation" in iis.method:
             lines.append("note: the conflict holds even without integrality (the LP relaxation is infeasible); "
                          "this is the relaxation's minimal conflict")
+        # the proof is HiGHS's dual ray: a licensed session stays on its solver, and the IIS stands without the proof
+        if not self._bk(md, solver or self.get(version).solver).licensed:
+            try:
+                c = od.certificate(md, 10.0, rows=list(iis.rows))
+            except Exception:  # noqa: BLE001
+                c = None
+            if c is not None:
+                lines += _proof_lines(c, "why these rows conflict (the solver's proof, checked):")
         lines += _conflict_rows(md, iis.rows)
         if iis.col_bounds:
             lines.append("variable bounds in the IIS:")
@@ -958,21 +985,9 @@ class Session:
                     "compute_iis lists the conflicting rows." if md.is_mip else
                     "no proof found within the time limit; compute_iis lists the conflicting rows")
         names = {n for n, _, _, _ in c.terms}
-        lines = [f"no plan meets these {c.rows} rows at once ("
-                 + ("the IIS" if names <= set(iis.rows) else "the whole model's proof; the IIS's rows alone gave none")
-                 + ("; exact for this MIP: the conflict holds even with fractional values" if md.is_mip else "") + "):"]
-        for label, side, total, sign, req in (("require at least", c.required, c.need, ">=", True),
-                                              ("allow at most", c.limits, c.have, "<=", False)):
-            lines.append(f"  {label} {_fmt(round(total, 9))}:")
-            for fam, (n, t) in sorted(side.items(), key=lambda kv: -abs(kv[1][1])):
-                rows = [(r, w, b) for r, w, b, q in c.terms if base_name(r) == fam and q == req]
-                shown = "; ".join(f"{'' if abs(w - 1) < 1e-9 else _fmt(round(w, 6)) + ' x '}{r} {sign} {_fmt(b)}"
-                                  for r, w, b in rows[:3]) + ("; ..." if len(rows) > 3 else "")
-                lines.append(f"    {fam} ({n} row{'s' if n > 1 else ''}): {_fmt(round(t, 9))}   [{shown}]")
-        if abs(c.forced) > 1e-9:
-            lines.append(f"  the variable bounds force {_fmt(round(c.forced, 9))} more ({', '.join(c.bounds)})")
-        lines.append(f"short by {_fmt(round(c.need + c.forced - c.have, 9))}: each row is weighted as shown (weights make "
-                     "the rows' left-hand sides add up to the same quantity), and the sums are checked by arithmetic")
+        lines = _proof_lines(c, f"no plan meets these {c.rows} rows at once ("
+                             + ("the IIS" if names <= set(iis.rows) else "the whole model's proof; the IIS's rows alone gave none")
+                             + ("; exact for this MIP: the conflict holds even with fractional values" if md.is_mip else "") + "):")
         return "\n".join(lines)
 
     def feasibility_relaxation(self, version="v0", only_families=None, relax_variable_bounds=False, solver=None,
