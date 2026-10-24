@@ -116,8 +116,10 @@ class PlanLanguage(unittest.TestCase):
 
     def test_the_iis_comes_with_its_proof(self):
         out = Session({"v0": Version(furniture(), None, "week")}).compute_iis()
-        self.assertIn("why these rows conflict (the solver's proof, checked):", out)
-        self.assertLess(out.index("require at least 650"), out.index("contract[desks]: "))  # the summary before the rows
+        self.assertIn("need at least 650 of one combined quantity, the limiting families allow at most 550: short by 100",
+                      out)
+        self.assertIn("require: contract 650 (3 rows)", out)
+        self.assertLess(out.index("allow: capacity 550 (2 rows)"), out.index("contract[desks]: "))  # summary first
 
     def test_a_crossed_bound_is_its_own_proof(self):
         md = furniture()

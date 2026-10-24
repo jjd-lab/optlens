@@ -301,6 +301,32 @@ def _proof_lines(c, header: str) -> list[str]:
     return lines
 
 
+def _g(v: float) -> str:  # an explanatory total, not a value to copy into a fix: 6 significant digits
+    return _fmt(float(f"{v:.6g}"))
+
+
+def _proof_summary(c) -> list[str]:
+    """The proof as compute_iis shows it: family totals only. E91: the weighted row lists drew answers into solver
+    arithmetic instead of the business mechanism, so the rows are left to the IIS listing below and the families
+    with a zero total, which only carry the conflict through, are named as the chain."""
+    def fams(side):
+        return ", ".join(f"{f} {_g(t)} ({n} row{'s' if n > 1 else ''})"
+                         for f, (n, t) in sorted(side.items(), key=lambda kv: -abs(kv[1][1])) if abs(t) > 1e-9)
+
+    chain = sorted({f for side in (c.required, c.limits) for f, (_, t) in side.items() if abs(t) <= 1e-9})
+    lines = [f"why no plan exists (the solver's proof, checked): the requiring families need at least "
+             f"{_g(c.need)} of one combined quantity, the limiting families allow at most "
+             f"{_g(c.have)}" + (f", and the variable bounds force {_g(c.forced)} more"
+                                            if abs(c.forced) > 1e-9 else "")
+             + f": short by {_g(c.need + c.forced - c.have)}",
+             f"  require: {fams(c.required)}", f"  allow: {fams(c.limits)}"]
+    if chain:
+        lines.append(f"  carried through (total 0, they link the families above): {', '.join(chain)}")
+    lines.append("  state this in the families' business meanings: what each family stands for and why its total "
+                 "is what it is")
+    return lines
+
+
 
 def _proof(r: od.SolveResult) -> str:
     """What a result does not prove: a plan the solver stopped on gives its bound and gap; a time limit without a plan
@@ -954,7 +980,7 @@ class Session:
             except Exception:  # noqa: BLE001
                 c = None
             if c is not None:
-                lines += _proof_lines(c, "why these rows conflict (the solver's proof, checked):")
+                lines += _proof_summary(c)
         lines += _conflict_rows(md, iis.rows)
         if iis.col_bounds:
             lines.append("variable bounds in the IIS:")
