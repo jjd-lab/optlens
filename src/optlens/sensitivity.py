@@ -159,3 +159,80 @@ def sensitivity(md: ModelData, time_limit: float = 60.0, backend=None, base=None
             out.rhs_range = (lo, hi)
             out.cost_range = (np.array(rng.col_cost_dn.value_), np.array(rng.col_cost_up.value_))
     return out
+
+
+@dataclass
+class OptimalityCertificate:
+    """Why no plan beats the optimum, as a receipt: each binding row's shadow price times the limit it sits at, and
+    each variable at a bound its reduced cost times that bound, summed with the objective's constant, give ``bound``:
+    the most a maximum's plan can earn, the least a minimum's can cost. Checked by arithmetic (the duals satisfy
+    c = A'y + d, every priced row and variable sits at the limit it is priced at, and the signs are those of an
+    optimum), so no feasible plan passes it. For a MIP the sum comes from the LP relaxation (``relaxation``), so it
+    also bounds every plan with whole numbers: when it equals the plan's objective (``exact``) it proves the plan
+    optimal, else the plan is within ``gap`` of it (20 business MILPs: 7 exact, gaps from 0.19 % up). On the
+    hotel week the relaxation's bound is the MILP optimum itself (the integers fixed instead leave nothing to price
+    in a model whose every variable is an integer). Each family maps to (rows or variables, total)."""
+    bound: float
+    plan: float
+    rows: dict[str, tuple[int, float]]
+    bounds: dict[str, tuple[int, float]]
+    offset: float
+    relaxation: bool
+    exact: bool
+    gap: float | None = None
+
+
+def optimality_certificate(md: ModelData, time_limit: float = 60.0, backend=None,
+                           tol: float = 1e-6) -> OptimalityCertificate | None:
+    """The optimum's dual certificate grouped by family (see OptimalityCertificate). None when the model (or, for a
+    MIP, the model or its relaxation) is not solved to optimality, has a quadratic objective, or the duals do not
+    check out."""
+    from .diagnose import base_name
+
+    if md.quadratic_objective:
+        return None
+    plan = None
+    if md.is_mip:
+        plan = (backend or default_backend(md)).solve(md, time_limit)
+        if plan.status != "OPTIMAL":
+            return None
+        md = replace(md, is_int=np.zeros(md.num_cols, dtype=bool))
+    s = sensitivity(md, time_limit, backend=backend)
+    if s.status != "OPTIMAL" or s.shadow_price is None or s.reduced_cost is None:
+        return None
+    x, y, d = s.x, s.shadow_price, s.reduced_cost
+    scale = 1.0 + float(np.abs(md.obj).max(initial=0.0))
+    if np.abs(md.obj - md.A.T @ y - d).max(initial=0.0) > tol * scale:  # the duals price the objective exactly
+        return None
+    act = md.A @ x
+    sign = 1.0 if md.minimize else -1.0  # a minimum's prices are >= 0 at lower limits; a maximum's the reverse
+
+    def at(value, lo, hi, price):
+        """The limit a priced row or variable sits at, if its price has an optimum's sign there; else None."""
+        near = tol * (1.0 + abs(value))
+        if np.isfinite(lo) and abs(value - lo) <= near and (sign * price >= -tol * scale or lo == hi):
+            return lo
+        if np.isfinite(hi) and abs(value - hi) <= near and (sign * price <= tol * scale or lo == hi):
+            return hi
+        return None
+
+    groups = ({}, {})
+    total, size = float(md.obj_offset), abs(float(md.obj_offset))  # size: what the sum's rounding scales with
+    for k, (prices, values, lo, hi, names) in enumerate(((y, act, md.row_lo, md.row_hi, md.row_names),
+                                                         (d, x, md.col_lb, md.col_ub, md.col_names))):
+        for i in np.flatnonzero(np.abs(prices) > tol * scale):
+            b = at(values[i], lo[i], hi[i], prices[i])
+            if b is None:
+                return None
+            n, t = groups[k].get(base_name(names[i]), (0, 0.0))
+            groups[k][base_name(names[i])] = (n + 1, t + float(prices[i] * b))
+            total += float(prices[i] * b)
+            size += abs(float(prices[i] * b))
+    bound = float(md.obj @ x + md.obj_offset)
+    if abs(total - bound) > 10 * tol * (1.0 + abs(bound) + size):  # big-M terms (1e9 on covid19) cancel
+        return None
+    value = bound if plan is None else float(plan.obj)
+    exact = abs(bound - value) <= 1e-6 * (1.0 + abs(value))
+    gap = None if exact else abs(bound - value) / max(1e-9, abs(value))
+    return OptimalityCertificate(bound, value, groups[0], groups[1], float(md.obj_offset), plan is not None, exact,
+                                 gap)

@@ -13,4 +13,5 @@ from .diagnose import (Certificate, apply_relaxation, certificate, check_iis, de
                        elastic_model, family_first_iis, fix_conflicts, feas_relax, fix_menu, get_iis, linking_families, lp_relaxation_iis,
                        relaxed_bounds)
 from .loaders import from_object, from_pulp, from_pyomo, load_script
+from .sensitivity import OptimalityCertificate, optimality_certificate
 from .model import INF, ModelData, UnsupportedModel, from_gurobipy, load

@@ -129,6 +129,32 @@ class PlanLanguage(unittest.TestCase):
         out = Session({"v0": Version(md, None, "week")}).infeasibility_proof()
         self.assertEqual(out, "no plan exists: make[chairs,north] must be >= 5 and <= 2")
 
+    def test_the_optimum_has_a_receipt(self):
+        # with 250 south hours the contracts' 650 hours fit exactly: the prices of the limits add up to the profit
+        md = furniture().set_row_bounds("capacity[south]", hi=250.0)
+        c = od.optimality_certificate(md)
+        self.assertAlmostEqual(c.bound, 15700)
+        self.assertTrue(c.exact)
+        self.assertFalse(c.relaxation)
+        total = sum(t for _, t in c.rows.values()) + sum(t for _, t in c.bounds.values()) + c.offset
+        self.assertAlmostEqual(total, 15700)
+
+    def test_a_milps_receipt_comes_from_its_relaxation(self):
+        def one(limit):  # max x, x whole in [0, 10], 2x <= limit
+            return od.ModelData(name="m", minimize=False, obj=np.ones(1), obj_offset=0.0,
+                                A=sp.csr_matrix(np.array([[2.0]])), row_lo=np.array([-od.INF]),
+                                row_hi=np.array([limit]), col_lb=np.zeros(1), col_ub=np.full(1, 10.0),
+                                is_int=np.ones(1, bool), col_names=("x",), row_names=("cap",))
+        c = od.optimality_certificate(one(4.0))  # the relaxation's x = 2 is whole: the sum proves the optimum
+        self.assertTrue(c.relaxation)
+        self.assertTrue(c.exact)
+        self.assertAlmostEqual(c.bound, 2)
+        c = od.optimality_certificate(one(3.0))  # relaxation 1.5, best whole plan 1: a bound with a gap
+        self.assertFalse(c.exact)
+        self.assertAlmostEqual(c.bound, 1.5)
+        self.assertAlmostEqual(c.plan, 1)
+        self.assertAlmostEqual(c.gap, 0.5)
+
     def test_no_proof_when_only_integrality_conflicts(self):
         # 2x = 1 with x whole: the relaxation solves (x = 0.5), so no weighted sum of rows proves it infeasible
         md = od.ModelData(name="m", minimize=True, obj=np.ones(1), obj_offset=0.0, A=sp.csr_matrix(np.array([[2.0]])),
