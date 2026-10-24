@@ -20,7 +20,7 @@
   <nav><a href="../">Home</a><a href="../ask/">What you can ask</a><a href="../examples/">Examples</a><a href="../benchmark/">Benchmark</a><a class="hide-sm" href="https://github.com/jjd-lab/optlens">GitHub</a></nav>
 </div></header>
 <article class="post"><h1 id="what-you-can-ask">What you can ask</h1>
-<p>Each question below maps to a tool. In Python the tool is a <code>Session</code> method. The MCP server (<code>optlens-mcp</code>, 22
+<p>Each question below maps to a tool. In Python the tool is a <code>Session</code> method. The MCP server (<code>optlens-mcp</code>, 23
 tools) and the Claude Code plugin have the same tools. Ask in your own words, and the agent picks the tools.</p>
 <h2 id="questions-and-tools">Questions and tools</h2>
 <div class="table"><table>
@@ -39,8 +39,8 @@ tools) and the Claude Code plugin have the same tools. Ask in your own words, an
 </tr>
 <tr>
 <td>why it is infeasible</td>
-<td>"Why is <code>plan.mps</code> infeasible?"</td>
-<td><code>compute_iis</code>, <code>feasibility_relaxation</code>, <code>drop_test</code></td>
+<td>"Why is <code>plan.mps</code> infeasible? Prove it."</td>
+<td><code>compute_iis</code>, <code>infeasibility_proof</code> (on request: the checked sum), <code>feasibility_relaxation</code>, <code>drop_test</code></td>
 </tr>
 <tr>
 <td>what fixes it</td>
