@@ -144,7 +144,8 @@ class PlanLanguage(unittest.TestCase):
         out, err = Session({"v0": Version(md, None, "week")}).call("optimality_proof", {})
         self.assertFalse(err)
         self.assertIn("no plan earns more than 15,700, and this plan reaches it", out)
-        self.assertIn("capacity (2 rows): 16,900", out)
+        self.assertIn("capacity (2 rows): 100% (16,900)", out)
+        self.assertIn("contract (2 rows): counts against the bound (-1,200)", out)
         self.assertIn("optimality_proof", [t["name"] for t in TOOLS])
         out, _ = Session({"v0": Version(furniture(), None, "week")}).call("optimality_proof", {})
         self.assertIn("not solved to optimality", out)  # 150 south hours: infeasible

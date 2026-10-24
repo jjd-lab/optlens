@@ -1022,21 +1022,29 @@ class Session:
                     "checked; the solver's search, not this sum, shows the plan is the best whole-number one)")]
         if c.relaxation:
             lines.append("(a MIP: the sum is the LP relaxation's, so it bounds every plan, with whole numbers or not)")
-        for label, side in (("binding constraint families (their limits times what a unit of each is worth)", c.rows),
-                            ("variables held at a bound (each bound times its reduced cost)", c.bounds)):
+        # E96: raw dual products ("RepairCapB accounts for 63,595.3 of the bound") were read out to the planner, so
+        # each family is shown as its share of what holds the plan up, and the closing line says what the sum is for
+        held = sum(t for side in (c.rows, c.bounds) for _, t in side.values() if t > 1e-9) or 1.0
+        for label, side in (("what holds the plan at this level, largest first (each family's limits valued at the "
+                             "solver's prices; share of what they are worth together)", c.rows),
+                            ("variables held at a bound", c.bounds)):
             worth = {f: v for f, v in side.items() if abs(v[1]) > 1e-9}
             linking = sorted(f for f, v in side.items() if abs(v[1]) <= 1e-9)
             if worth or linking:
                 lines.append(f"  {label}:")
-            for f, (n, t) in sorted(worth.items(), key=lambda kv: -abs(kv[1][1])):
-                lines.append(f"    {f} ({n:,} {'row' if side is c.rows else 'variable'}{'s' if n > 1 else ''}): {g(t)}")
+            for f, (n, t) in sorted(worth.items(), key=lambda kv: -kv[1][1]):
+                what = f"{n:,} {'row' if side is c.rows else 'variable'}{'s' if n > 1 else ''}"
+                lines.append(f"    {f} ({what}): {t / held:.0%} ({g(t)})" if t > 0 else
+                             f"    {f} ({what}): counts against the bound ({g(t)}): a requirement the plan must meet")
             if linking and side is c.rows:
                 lines.append(f"    binding at a limit of 0, linking the families above: {', '.join(linking)}")
             elif linking:  # a variable priced at a bound of 0: more of it would earn less than the limits it uses
                 lines.append(f"    held at 0, each unit worth less than the limits it would use: {', '.join(linking)}")
         if abs(c.offset) > 1e-9:
             lines.append(f"  the objective's constant: {g(c.offset)}")
-        lines.append(f"sum: {g(c.bound)}. Unlisted constraints have slack: changing them alone does not change the bound")
+        lines.append(f"sum: {g(c.bound)}, checked. Unlisted constraints have slack: changing them alone does not change "
+                     "the bound. For the planner, say what each family stands for in the business and why it stops the "
+                     "plan going further; the prices and this sum are the solver's check, not the explanation")
         return "\n".join(lines)
 
     def feasibility_relaxation(self, version="v0", only_families=None, relax_variable_bounds=False, solver=None,
