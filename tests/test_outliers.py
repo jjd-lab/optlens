@@ -60,6 +60,21 @@ class TestOutliers(unittest.TestCase):
         tiny = replace(model([1] * 3), row_lo=row_lo, row_hi=row_hi)
         self.assertEqual(family_outliers(tiny), [])
 
+    def test_nonzero_where_two_siblings_are_zero(self):
+        # M12: Semiskilled_training[1] at -296.7 beside two 0s fell through every three-member rule
+        self.assertEqual([f["name"] for f in family_outliers(model([0, -296.7, 0]))], ["cap[1]"])
+
+    def test_a_small_familys_mixed_sense_in_the_conflict(self):
+        # M12: fatCap[fat] flipped to >= beside fatCap[dryMatter] <= (two rows): flagged only in an infeasible
+        # model's IIS, where the solved flip back decides
+        md = model([1, 1])
+        row_lo, row_hi = md.row_lo.copy(), md.row_hi.copy()
+        row_lo[0], row_hi[0] = 1.0, od.INF
+        md = replace(md, row_lo=row_lo, row_hi=row_hi)
+        self.assertEqual(family_outliers(md), [])  # a feasible model: a mix of two is no pattern
+        flags = family_outliers(md, iis_rows={"cap[0]"}, infeasible=True)
+        self.assertEqual([(f["kind"], f["name"]) for f in flags], [("constraint sense", "cap[0]")])
+
 
 def anonymous(rows, senses, rhs):
     """Rows as coefficient lists over shared columns, with names that carry no pattern (as in some anonymous MPS)."""

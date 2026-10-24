@@ -74,6 +74,8 @@ def _flag_group(values: np.ndarray, idx: list[int], n_all: int = 0) -> list[tupl
         t = float(uniq[top])
         if t != 0 and (abs(v[k] - t) <= NEAR_MISS * abs(t) or _is_typo(float(v[k]), t)):
             return [(members[k], f"differs from its 2 siblings at {t:.15g}", t)]
+        if t == 0:  # as for two siblings, one zero (below): no ratio to judge, so the nonzero one is reported
+            return [(members[k], "nonzero where its 2 siblings are 0", 0.0)]
         return []
     if len(v) == 2 and (v == 0).sum() == 1:  # two siblings, one zero: ambiguous, report the nonzero one
         i = members[int(np.flatnonzero(v != 0)[0])]
@@ -108,6 +110,24 @@ def _flag_senses(sense: np.ndarray, idx: list[int], flips_only: bool = False) ->
         return []
     i = idx[int(np.flatnonzero(sense[idx] == odd)[0])]
     return [(i, f"sense {odd} where its {len(idx) - 1} siblings are all {common}")]
+
+
+def _flag_small_senses(sense: np.ndarray, idx: list[int], iis_rows: set[str], names) -> list[tuple[int, str]]:
+    """A family of 2-3 rows mixing <= and >=, in an infeasible model: too small to tell the flipped row from the
+    pattern, so each minority row in the conflict (the IIS) is flagged, and suspicious_values' solve of the flip
+    back decides (M12: a 2-row family's flipped sense was missed twice)."""
+    s = sense[idx]
+    if set(s) != {"<=", ">="}:
+        return []
+    vals, counts = np.unique(s, return_counts=True)
+    minority = [vals[counts.argmin()]] if counts.min() != counts.max() else list(vals)
+    out = []
+    for i in idx:
+        if sense[i] in minority and names[i] in iis_rows:
+            other = ">=" if sense[i] == "<=" else "<="
+            out.append((i, f"sense {sense[i]} where its {'sibling is' if len(idx) == 2 else 'siblings are'} {other} "
+                           "(a small family: the flip back is solved)"))
+    return out
 
 
 def _sense_free_groups(md: ModelData) -> list[tuple[str, list[int]]]:
@@ -168,6 +188,9 @@ def family_outliers(md: ModelData, iis_rows: set[str] | None = None, max_flags: 
     for g, idx in _groups(md.row_names):
         for i, why in _flag_senses(sense, idx):
             add("constraint sense", md.row_names[i], rhs[i], why, None, g, len(idx))
+        if infeasible and 2 <= len(idx) < SENSE_MIN_GROUP:
+            for i, why in _flag_small_senses(sense, idx, iis_rows, md.row_names):
+                add("constraint sense", md.row_names[i], rhs[i], why, None, g, len(idx))
     if not names_are_meaningful(md):  # named models have their families; shape and file order stand in for them
         for g, idx in _sense_free_groups(md):
             for i, why in _flag_senses(sense, idx, flips_only=True):
