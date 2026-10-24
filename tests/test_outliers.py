@@ -64,6 +64,17 @@ class TestOutliers(unittest.TestCase):
         # M12: Semiskilled_training[1] at -296.7 beside two 0s fell through every three-member rule
         self.assertEqual([f["name"] for f in family_outliers(model([0, -296.7, 0]))], ["cap[1]"])
 
+    def test_the_only_negative_limit_among_nonnegative_siblings(self):
+        # M13: afiro's X45 pushed from 0 to -488 among limits of 0 and positive values
+        self.assertEqual([f["name"] for f in family_outliers(model([0, 5, 0, 12, -488, 0, 3]))], ["cap[4]"])
+        two = family_outliers(model([0, 5, -2, 12, -488, 0, 3]))  # two negatives: no lone sign (the spread rule may flag)
+        self.assertFalse(any("the only negative" in f["reason"] for f in two))
+
+    def test_a_crossed_bound_is_flagged(self):
+        md = model([1, 1])
+        flags = family_outliers(replace(md, col_lb=np.array([1.0, 1.0]), col_ub=np.array([10.0, -0.8])))
+        self.assertEqual([(f["kind"], f["name"]) for f in flags], [("variable upper bound", "x[1]")])
+
     def test_a_small_familys_mixed_sense_in_the_conflict(self):
         # M12: fatCap[fat] flipped to >= beside fatCap[dryMatter] <= (two rows): flagged only in an infeasible
         # model's IIS, where the solved flip back decides

@@ -112,6 +112,27 @@ def _flag_senses(sense: np.ndarray, idx: list[int], flips_only: bool = False) ->
     return [(i, f"sense {odd} where its {len(idx) - 1} siblings are all {common}")]
 
 
+SIGN_MIN_GROUP = 5  # a lone sign is read as a break only in a group of at least this many limits, itself included
+
+
+def _flag_sign(values: np.ndarray, idx: list[int]) -> list[tuple[int, str, float]]:
+    """The one negative limit in a group whose other limits are all >= 0 (or the one positive among <= 0), as a typo
+    pushed past 0 (M13: afiro's 0 -> -488 and share2b's 0 -> -5.05, in groups of 19 and 96). The typical value is
+    the median of the others, which the checked fix puts back."""
+    v = values[idx]
+    ok = np.isfinite(v)
+    if ok.sum() < SIGN_MIN_GROUP:
+        return []
+    members, v = [i for i, f in zip(idx, ok) if f], v[ok]
+    for lone, rest in ((v < 0, v >= 0), (v > 0, v <= 0)):
+        if lone.sum() == 1 and rest.sum() == len(v) - 1:
+            k = int(np.flatnonzero(lone)[0])
+            typical = float(np.median(np.delete(v, k)))
+            word = "negative" if v[k] < 0 else "positive"
+            return [(members[k], f"the only {word} limit among {len(v) - 1} siblings", typical)]
+    return []
+
+
 def _flag_small_senses(sense: np.ndarray, idx: list[int], iis_rows: set[str], names) -> list[tuple[int, str]]:
     """A family of 2-3 rows mixing <= and >=, in an infeasible model: too small to tell the flipped row from the
     pattern, so each minority row in the conflict (the IIS) is flagged, and suspicious_values' solve of the flip
@@ -179,10 +200,18 @@ def family_outliers(md: ModelData, iis_rows: set[str] | None = None, max_flags: 
                           "reason": reason, "group": group, "in_iis": name in iis_rows,
                           "_size": size if size is not None else float("inf")}
 
+    # bounds that contradict themselves are errors whatever their siblings say (M13: market_sharing's upper bound -0.8
+    # under a lower bound of 0 was never flagged)
+    for j in np.flatnonzero(md.col_lb > md.col_ub):
+        add("variable upper bound", md.col_names[j], md.col_ub[j],
+            f"below its own lower bound {md.col_lb[j]:.15g}", float(md.col_lb[j]), "(its own bounds)", 1)
+    for i in np.flatnonzero(md.row_lo > md.row_hi):
+        add("constraint limit", md.row_names[i], md.row_hi[i],
+            f"upper limit below its own lower limit {md.row_lo[i]:.15g}", None, "(its own limits)", 1)
     rhs = _active_limit(md)
     groups = _groups(md.row_names) + list(row_classes(md).items())  # names and, name-free, row shape
     for g, idx in groups:
-        for i, why, typ in _flag_group(rhs, idx, md.num_rows):
+        for i, why, typ in _flag_group(rhs, idx, md.num_rows) + _flag_sign(rhs, idx):
             add("constraint limit", md.row_names[i], rhs[i], why, typ, g, len(idx))
     sense = _senses(md)
     for g, idx in _groups(md.row_names):
