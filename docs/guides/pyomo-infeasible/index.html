@@ -74,9 +74,10 @@ CONSTR storage: evaluation error &lt;?= 400.0
 against each constraint. After an infeasible solve there are no values (the solver has no plan to return), so it
 can't evaluate anything. It's useful when a solve returns a plan you think breaks a constraint, but it can't explain
 an infeasible model.</p>
-<h2 id="compute_infeasibility_explanation-works-with-gurobi-failed-with-highs"><code>compute_infeasibility_explanation</code>: works with Gurobi, failed with HiGHS</h2>
+<h2 id="compute_infeasibility_explanation-works-with-gurobi-and-ipopt-failed-with-highs"><code>compute_infeasibility_explanation</code>: works with Gurobi and IPOPT, failed with HiGHS</h2>
 <p><code>pyomo.contrib.iis.compute_infeasibility_explanation</code> finds a minimal infeasible set (an MIS, the same idea as an
-IIS) by relaxing constraints and solving many smaller models. With HiGHS through Pyomo it stopped with an error:</p>
+IIS) by relaxing constraints and solving many smaller models. Its documentation says to use IPOPT, even for an LP,
+and with IPOPT it finds the five constraints below. With HiGHS through Pyomo it stopped with an error:</p>
 <pre><code class="language-python">import pyomo.environ as pyo
 from pyomo.contrib.iis import compute_infeasibility_explanation
 from furniture_week import m
