@@ -9,8 +9,8 @@ except _NotInstalled:  # run from a source checkout without installing
 from .backends import (BACKENDS, IIS, race, GurobiBackend, HiGHSBackend, IISNotSupported, LicenseLimit, SCIPBackend,
                        SolverUnusable, SolveResult, StartingPlan, StepTimeUsed, gurobi_problem, gurobi_usable,
                        gurobipy_version, starting_plan)
-from .diagnose import (apply_relaxation, check_iis, default_backend, deletion_filter_iis, elastic_model,
-                       family_first_iis, fix_conflicts, feas_relax, fix_menu, get_iis, linking_families, lp_relaxation_iis,
+from .diagnose import (Certificate, apply_relaxation, certificate, check_iis, default_backend, deletion_filter_iis,
+                       elastic_model, family_first_iis, fix_conflicts, feas_relax, fix_menu, get_iis, linking_families, lp_relaxation_iis,
                        relaxed_bounds)
 from .loaders import from_object, from_pulp, from_pyomo, load_script
 from .model import INF, ModelData, UnsupportedModel, from_gurobipy, load

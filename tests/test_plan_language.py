@@ -98,6 +98,22 @@ class PlanLanguage(unittest.TestCase):
         self.assertEqual([c["name"] for c in r.relaxations], ["cap_x"])
         self.assertAlmostEqual(r.objective, 3 * 6 + 1 * 4)
 
+    def test_the_infeasibility_proof_reads_as_family_totals(self):
+        # the contracts need 120 x 1 + 60 x 3 + 70 x 5 = 650 hours, the plants allow 400 + 150 = 550
+        c = od.certificate(furniture())
+        self.assertEqual({k: n for k, (n, _) in c.required.items()}, {"contract": 3})
+        self.assertEqual({k: n for k, (n, _) in c.limits.items()}, {"capacity": 2})
+        self.assertAlmostEqual(c.need, 650)
+        self.assertAlmostEqual(c.have, 550)
+        self.assertAlmostEqual(c.forced, 0)
+
+    def test_no_proof_when_only_integrality_conflicts(self):
+        # 2x = 1 with x whole: the relaxation solves (x = 0.5), so no weighted sum of rows proves it infeasible
+        md = od.ModelData(name="m", minimize=True, obj=np.ones(1), obj_offset=0.0, A=sp.csr_matrix(np.array([[2.0]])),
+                          row_lo=np.array([1.0]), row_hi=np.array([1.0]), col_lb=np.zeros(1), col_ub=np.full(1, 10.0),
+                          is_int=np.ones(1, bool), col_names=("x",), row_names=("half",))
+        self.assertIsNone(od.certificate(md))
+
     def test_the_best_plan_phase_leaves_no_solver_noise_in_the_fix(self):
         # the best-plan solve returned 19.9999999685 on contract[desks] plus 5e-8 on contract[tables], which the
         # scale-back then spread over both: the fix must be the exact minimum on the one row that moves

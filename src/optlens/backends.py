@@ -433,14 +433,22 @@ class HiGHSBackend(Backend):
     def farkas_rows(self, md: ModelData, time_limit: float = 60.0) -> list[int] | None:
         """Rows with a nonzero multiplier in HiGHS's proof that the LP ``md`` is infeasible (its dual ray): together,
         with the variable bounds, they are infeasible on their own. None when the LP is not proven infeasible or no
-        ray is returned. Presolve is off, since a model presolve rejects comes back without a ray."""
+        ray is returned."""
+        ray = self.dual_ray(md, time_limit)
+        return None if ray is None else np.flatnonzero(ray).tolist()
+
+    def dual_ray(self, md: ModelData, time_limit: float = 60.0) -> np.ndarray | None:
+        """HiGHS's proof that the LP ``md`` is infeasible: one multiplier per row, multipliers below 1e-9 of the
+        largest set to zero. Its sign convention is HiGHS's; ``diagnose.certificate`` checks the proof in either sign.
+        None when the LP is not proven infeasible or no ray is returned. Presolve is off, since a model presolve
+        rejects comes back without a ray."""
         time_limit = fit(time_limit)
         try:
-            return _with_deadline(self._farkas_rows, (md, time_limit), time_limit + _GRACE)
+            return _with_deadline(self._dual_ray, (md, time_limit), time_limit + _GRACE)
         except _TimedOut:
             return None
 
-    def _farkas_rows(self, md, time_limit):
+    def _dual_ray(self, md, time_limit):
         h = self._highs(md, time_limit)
         h.setOptionValue("presolve", "off")
         h.run()
@@ -449,8 +457,9 @@ class HiGHSBackend(Backend):
         status, has_ray, ray = h.getDualRay()
         if status != highspy.HighsStatus.kOk or not has_ray:
             return None
-        ray = np.asarray(ray)
-        return np.flatnonzero(np.abs(ray) > 1e-9 * max(1.0, float(np.abs(ray).max()))).tolist()
+        ray = np.asarray(ray, dtype=float)
+        ray[np.abs(ray) <= 1e-9 * max(1.0, float(np.abs(ray).max()))] = 0.0
+        return ray
 
     def _solve(self, md, time_limit, start=None):
         h = self._highs(md, time_limit)

@@ -340,6 +340,64 @@ def lp_relaxation_iis(md: ModelData, time_limit: float = 300.0, backend: Backend
     return replace(iis, method=f"lp_relaxation:{iis.method}")
 
 
+@dataclass
+class Certificate:
+    """A proof that a model's LP relaxation is infeasible, as one weighted sum of its rows: the ``required`` families
+    (rows used on their >= side) ask for at least ``need`` of one combined quantity, the ``limits`` families (<= side)
+    allow at most ``have`` of it, and the variable bounds force ``forced`` more of it (0 when every variable sits at
+    a lower bound of 0). ``need + forced > have`` is the contradiction, checked by arithmetic. Each family maps to
+    (rows, weighted total); weights are scaled so the most common one is 1, so the totals share the rows' unit
+    where the rows themselves do. ``bounds`` lists the variable families whose bounds the proof uses."""
+    required: dict[str, tuple[int, float]]
+    limits: dict[str, tuple[int, float]]
+    need: float
+    have: float
+    forced: float
+    bounds: list[str]
+    rows: int
+
+
+def certificate(md: ModelData, time_limit: float = 60.0) -> Certificate | None:
+    """HiGHS's infeasibility proof for the LP relaxation of ``md`` (its dual ray), checked and grouped by constraint
+    family. Exact for an LP and for a MIP whose relaxation is infeasible; None when the relaxation is feasible (the
+    conflict needs integrality, so no single weighted sum proves it), when no ray is returned, or when the ray does
+    not check out in either sign."""
+    from .backends import BACKENDS
+
+    lp = replace(md, is_int=np.zeros(md.num_cols, dtype=bool))
+    ray = BACKENDS["highs"].dual_ray(lp, time_limit)
+    if ray is None or not ray.any():
+        return None
+    w = np.abs(ray[ray != 0])
+    vals, counts = np.unique(np.round(w / w.max(), 9), return_counts=True)
+    unit = float(vals[np.argmax(counts)] * w.max())
+    for y in (ray / unit, -ray / unit):
+        # y > 0 uses row i as a_i x <= row_hi, y < 0 as a_i x >= row_lo; sum them: d x <= rhs
+        hi = np.where(y > 0, md.row_hi, np.where(y < 0, md.row_lo, 0.0))
+        if not np.all(np.isfinite(hi[y != 0])):
+            continue
+        d = md.A.T @ y
+        d[np.abs(d) <= 1e-9 * (1 + np.abs(md.A).T @ np.abs(y))] = 0.0  # cancellation residue, not a coefficient
+        rhs = float(y[y != 0] @ hi[y != 0])
+        lo_end = np.where(d > 0, md.col_lb, np.where(d < 0, md.col_ub, 0.0))
+        if not np.all(np.isfinite(lo_end[d != 0])):
+            continue
+        floor = float(d[d != 0] @ lo_end[d != 0])  # the least d x can be within the variable bounds
+        if floor - rhs <= 1e-7 * (1 + abs(floor) + abs(rhs)):
+            continue
+        required, limits = {}, {}
+        for i in np.flatnonzero(y):
+            side = limits if y[i] > 0 else required
+            n, t = side.get(base_name(md.row_names[i]), (0, 0.0))
+            side[base_name(md.row_names[i])] = (n + 1, t + float(y[i] * hi[i] if y[i] > 0 else -y[i] * hi[i]))
+        need = float(-sum(y[i] * hi[i] for i in np.flatnonzero(y < 0)))
+        have = float(sum(y[i] * hi[i] for i in np.flatnonzero(y > 0)))
+        used = np.flatnonzero((d != 0) & (lo_end != 0))
+        return Certificate(required, limits, need, have, floor, sorted({base_name(md.col_names[j]) for j in used}),
+                           int(np.count_nonzero(y)))
+    return None
+
+
 def family_first_iis(md: ModelData, backend: Backend, time_limit: float = 60.0,
                      budget: float = 300.0) -> tuple[list[str], IIS]:
     """Deletion filter over groups of rows (whole groups dropped at once), then a row-level IIS on the
