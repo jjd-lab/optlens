@@ -1,6 +1,6 @@
 # optlens Claude Code plugin
 
-The plugin is the optlens MCP server (`optlens-mcp`, 22 tools) plus the `optlens` skill. The server sends its method to
+The plugin is the optlens MCP server (`optlens-mcp`, 23 tools) plus the `optlens` skill. The server sends its method to
 every MCP client (see "Use it with your agent" in the [README](../README.md)), and the skill points Claude to it.
 
 ```bash

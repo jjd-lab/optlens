@@ -6,7 +6,7 @@ import numpy as np
 import scipy.sparse as sp
 
 import optlens as od
-from optlens.session import Session, Version
+from optlens.session import TOOLS, Session, Version
 
 
 def schedule() -> od.ModelData:
@@ -114,12 +114,14 @@ class PlanLanguage(unittest.TestCase):
         self.assertIn("capacity (2 rows): 550", out)
         self.assertIn("short by 100", out)
 
-    def test_the_iis_comes_with_its_proof(self):
-        out = Session({"v0": Version(furniture(), None, "week")}).compute_iis()
-        self.assertIn("need at least 650 of one combined quantity, the limiting families allow at most 550: short by 100",
-                      out)
-        self.assertIn("require: contract 650 (3 rows)", out)
-        self.assertLess(out.index("allow: capacity 550 (2 rows)"), out.index("contract[desks]: "))  # summary first
+    def test_the_proof_is_a_tool_of_its_own(self):
+        # E91-E92: the proof inside compute_iis cost answers their business chain, so it is offered on request only
+        s = Session({"v0": Version(furniture(), None, "week")})
+        self.assertNotIn("require at least", s.compute_iis())
+        out, err = s.call("infeasibility_proof", {})
+        self.assertFalse(err)
+        self.assertIn("short by 100", out)
+        self.assertIn("infeasibility_proof", [t["name"] for t in TOOLS])
 
     def test_a_crossed_bound_is_its_own_proof(self):
         md = furniture()

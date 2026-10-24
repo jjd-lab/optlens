@@ -126,6 +126,11 @@ TOOLS = [
         "input_schema": {"type": "object", "properties": {"version": {"type": "string", "description": "Model version; default 'v0', the original."}, "solver": {"type": "string", "enum": ["highs", "scip"], "description": "Omit to use the solver chosen for this model (the first result names it); pass one to override or cross-check."}, "time_limit": {"type": "number", "description": "Seconds for the whole search; default 300, or 60 on a MIP over 500 rows."}}},
     },
     {
+        "name": "infeasibility_proof",
+        "description": "Only when the user asks for proof or for the numbers behind a conflict: the solver's checked proof that no plan exists, as what the conflicting families require against what they allow, each row with its weight (e.g. hours per unit). Exact for an LP and for a MIP whose conflict holds without integrality; it says so when the conflict needs whole numbers. Uses the IIS (computes it if needed). Explain it in the families' business meanings, not as the solver's sum.",
+        "input_schema": {"type": "object", "properties": {"version": {"type": "string", "description": "Model version; default 'v0', the original."}, "time_limit": {"type": "number", "description": "Seconds for the IIS and the proof."}}},
+    },
+    {
         "name": "feasibility_relaxation",
         "description": "Minimal total change (sum of absolute RHS/bound changes) that makes an infeasible version feasible (one relaxation solve; slower than a plain solve on a large MIP). Returns one minimal fix: its changes, applied together, each with its current and suggested value; other minimal fixes of the same total may exist (fix_menu lists single-family fixes). Suggested values are exact: copy them as printed rather than rounding or recomputing them. only_families limits which constraint/variable families may change (others stay hard); relax_variable_bounds also allows variable bounds to move.",
         "input_schema": {"type": "object", "properties": {
@@ -282,6 +287,7 @@ def _fmt(v) -> str:
         return f"{v + 0.0:.15g}"  # exact enough to type back in: .6g rounding put a relaxed bound on the infeasible side
     return str(v)
 
+
 def _proof_lines(c, header: str) -> list[str]:
     """A checked infeasibility proof (od.certificate) as text: what the families require against what they allow,
     each row with its weight (first three per family)."""
@@ -298,32 +304,6 @@ def _proof_lines(c, header: str) -> list[str]:
         lines.append(f"  the variable bounds force {_fmt(round(c.forced, 9))} more ({', '.join(c.bounds)})")
     lines.append(f"short by {_fmt(round(c.need + c.forced - c.have, 9))}: each row is weighted as shown (weights make "
                  "the rows' left-hand sides add up to the same quantity), and the sums are checked by arithmetic")
-    return lines
-
-
-def _g(v: float) -> str:  # an explanatory total, not a value to copy into a fix: 6 significant digits
-    return _fmt(float(f"{v:.6g}"))
-
-
-def _proof_summary(c) -> list[str]:
-    """The proof as compute_iis shows it: family totals only. E91: the weighted row lists drew answers into solver
-    arithmetic instead of the business mechanism, so the rows are left to the IIS listing below and the families
-    with a zero total, which only carry the conflict through, are named as the chain."""
-    def fams(side):
-        return ", ".join(f"{f} {_g(t)} ({n} row{'s' if n > 1 else ''})"
-                         for f, (n, t) in sorted(side.items(), key=lambda kv: -abs(kv[1][1])) if abs(t) > 1e-9)
-
-    chain = sorted({f for side in (c.required, c.limits) for f, (_, t) in side.items() if abs(t) <= 1e-9})
-    lines = [f"why no plan exists (the solver's proof, checked): the requiring families need at least "
-             f"{_g(c.need)} of one combined quantity, the limiting families allow at most "
-             f"{_g(c.have)}" + (f", and the variable bounds force {_g(c.forced)} more"
-                                            if abs(c.forced) > 1e-9 else "")
-             + f": short by {_g(c.need + c.forced - c.have)}",
-             f"  require: {fams(c.required)}", f"  allow: {fams(c.limits)}"]
-    if chain:
-        lines.append(f"  carried through (total 0, they link the families above): {', '.join(chain)}")
-    lines.append("  state this in the families' business meanings: what each family stands for and why its total "
-                 "is what it is")
     return lines
 
 
@@ -973,14 +953,6 @@ class Session:
         if iis.method.startswith("lp_relaxation") or ":lp_relaxation" in iis.method:
             lines.append("note: the conflict holds even without integrality (the LP relaxation is infeasible); "
                          "this is the relaxation's minimal conflict")
-        # the proof is HiGHS's dual ray: a licensed session stays on its solver, and the IIS stands without the proof
-        if not self._bk(md, solver or self.get(version).solver).licensed:
-            try:
-                c = od.certificate(md, 10.0, rows=list(iis.rows))
-            except Exception:  # noqa: BLE001
-                c = None
-            if c is not None:
-                lines += _proof_summary(c)
         lines += _conflict_rows(md, iis.rows)
         if iis.col_bounds:
             lines.append("variable bounds in the IIS:")
@@ -1002,6 +974,9 @@ class Session:
         if crossed:  # no solver proof needed (HiGHS returns none): the bounds contradict themselves
             return "no plan exists: " + "; ".join(crossed[:ROW_LIMIT]) + (f"; ... {len(crossed) - ROW_LIMIT} more"
                                                                         if len(crossed) > ROW_LIMIT else "")
+        if self._bk(md, self.get(version).solver).licensed:
+            return ("the proof is computed by HiGHS, and this session stays on its licensed solver; compute_iis lists "
+                    "the conflicting rows")
         limit = self._limit(time_limit, self.time_limit)
         _, iis = self.iis(version, time_limit=limit)
         c = od.certificate(md, limit, rows=list(iis.rows)) or od.certificate(md, limit)

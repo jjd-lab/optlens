@@ -104,7 +104,7 @@ HiGHS's proof of infeasibility instead of searching the whole model.
 
 ## Use it with your agent
 
-Install as above, which puts `optlens-mcp` on your PATH. Then connect once. The agent gets the 22 tools and the
+Install as above, which puts `optlens-mcp` on your PATH. Then connect once. The agent gets the 23 tools and the
 method that goes with them: open the model first, lead with the cause, take every number from a solve, and re-solve
 before recommending a fix.
 
