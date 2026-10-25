@@ -17,7 +17,7 @@
 <body>
 <header class="top"><div class="wrap">
   <a class="brand" href="">opt<span>lens</span></a>
-  <nav><a href="">Home</a><a href="ask/">What you can ask</a><a href="examples/">Examples</a><a href="benchmark/">Benchmark</a><a class="hide-sm" href="https://github.com/jjd-lab/optlens">GitHub</a></nav>
+  <nav><a class="hide-sm" href="">Home</a><a href="ask/">What you can ask</a><a href="examples/">Examples</a><a href="benchmark/">Benchmark</a><a href="guides/">Guides</a><a class="hide-sm" href="https://github.com/jjd-lab/optlens">GitHub</a></nav>
 </div></header>
 
 <div class="hero"><div class="wrap">
@@ -73,6 +73,13 @@ codex mcp add optlens -- optlens-mcp                           # Codex (others: 
     It gives each family's business meaning, checked against the model, as JSON your team reviews and reuses.</p></div>
   </div>
   <p style="margin:22px 0 0"><a href="ask/">Everything you can ask, tool by tool &rarr;</a></p>
+</div></section>
+
+<section class="soft"><div class="wrap">
+  <h2 class="sec">Guides</h2>
+  <p class="sub">Step-by-step answers to common questions about infeasible models, with code you can run and the output
+  it prints.</p>
+  <div class="cards"><a class="card" href="guides/infeasible-model/"><h3>Why a model is infeasible</h3><p>Find the constraints that clash (an IIS) with HiGHS or Gurobi, read them as a business conflict, and get the smallest fix. Start here.</p><div class="more">Read the guide &rarr;</div></a><a class="card" href="guides/pyomo-infeasible/"><h3>Pyomo infeasible model</h3><p>Why log_infeasible_constraints shows nothing after an infeasible solve, and how to get the IIS of a Pyomo model on HiGHS.</p><div class="more">Read the guide &rarr;</div></a><a class="card" href="guides/milp-proof/"><h3>A proof of infeasibility (MILP)</h3><p>The IIS says which rules clash; the solver&#x27;s proof says why, as a sum anyone can check. On a 2,691-row hotel week.</p><div class="more">Read the guide &rarr;</div></a></div>
 </div></section>
 
 <section class="demo"><div class="wrap">
