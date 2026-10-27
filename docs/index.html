@@ -25,18 +25,25 @@
   <p class="lead">optlens finds why an LP or MILP model is infeasible, the smallest change that fixes it, and what a
   change costs. Then it says so in words a planner understands. Use it from Python, any MCP client, or Claude Code,
   on HiGHS, SCIP or your own Gurobi.</p>
+  <h2 class="get-started">Get started</h2>
   <div class="buttons"><a class="btn primary" href="https://github.com/jjd-lab/optlens">Get started on GitHub</a>
   <a class="btn ghost" href="benchmark/">Read the benchmark</a></div>
-  <pre class="install"><code>pip install "optlens[scip,mcp]"
-claude plugin marketplace add jjd-lab/optlens                 # Claude Code
-claude plugin install optlens@optlens
-codex mcp add optlens -- optlens-mcp                           # Codex (others: one line)</code></pre>
+  <div class="install">
+    <p>pip</p>
+    <pre><code>pip install "optlens[scip,mcp]"</code></pre>
+    <p>Claude Code</p>
+    <pre><code>claude plugin marketplace add jjd-lab/optlens</code></pre>
+    <pre><code>claude plugin install optlens@optlens</code></pre>
+    <p>Codex (others: one line)</p>
+    <pre><code>codex mcp add optlens -- optlens-mcp</code></pre>
+  </div>
 </div></div>
 
 <section class="soft"><div class="wrap">
   <h2 class="sec">Measured on 400 cases</h2>
-  <p class="sub">Infeasible, wrong and working LP and MILP models of up to 837,000 constraints, each case with a
-  solver-verified answer key. We compare Claude with optlens against the same agent given only a solver, both in our
+  <p class="sub claim">Infeasible, wrong and working LP and MILP models of up to 837,000 constraints, each case with a
+  solver-verified answer key.</p>
+  <p class="sub">We compare Claude with optlens against the same agent given only a solver, both in our
   own minimal agent loop with the same model context. We also measured the plugin in Claude Code itself.</p>
   <div class="stats">
     <div class="stat"><div class="n">95-100 %</div><div class="l">correct in every suite, with or without
