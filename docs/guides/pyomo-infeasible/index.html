@@ -86,7 +86,9 @@ compute_infeasibility_explanation(m, solver=pyo.SolverFactory(&quot;appsi_highs&
 </code></pre>
 <pre><code class="language-text">RuntimeError: A feasible solution was not found, so no solution can be loaded. If using the appsi.solvers.Highs interface, you can set opt.config.load_solution=False. If using the environ.SolverFactory interface, you can set opt.solve(model, load_solutions = False). Then you can check results.termination_condition and results.best_feasible_objective before loading a solution.
 </code></pre>
-<p>The <code>highs</code> interface stopped with the same kind of error. With Gurobi it works:</p>
+<p>The <code>highs</code> interface stopped with the same kind of error. It's a Pyomo bug, confirmed on
+<a href="https://github.com/Pyomo/pyomo/issues/4060">issue #4060</a>: both HiGHS interfaces raise when one of the smaller models
+is infeasible instead of returning a result, and a contributor has offered a fix. With Gurobi it works:</p>
 <pre><code class="language-python">import logging
 import pyomo.environ as pyo
 from pyomo.contrib.iis import compute_infeasibility_explanation
